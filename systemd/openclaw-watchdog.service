@@ -1,0 +1,17 @@
+# openclaw-watchdog.service — systemd user service (oneshot) for OpenClaw watchdog
+#
+# Triggered by openclaw-watchdog.timer every 5 minutes.
+# Install: bash scripts/watchdog-install.sh
+
+[Unit]
+Description=OpenClaw Watchdog (oneshot)
+After=network.target
+Documentation=https://docs.openclaw.ai
+
+[Service]
+Type=oneshot
+# SCRIPTS_DIR is substituted by watchdog-install.sh at install time
+ExecStart=/bin/bash SCRIPTS_DIR/watchdog.sh
+StandardOutput=append:%h/.openclaw/logs/watchdog.log
+StandardError=append:%h/.openclaw/logs/watchdog.log
+Environment=HOME=%h

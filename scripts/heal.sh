@@ -28,6 +28,28 @@ gateway_running() {
     pgrep -f 'openclaw.*gateway' >/dev/null 2>&1
 }
 
+# On Linux, prefer systemctl when the gateway is a managed unit so the service
+# manager tracks the new PID. Falls back to the openclaw CLI otherwise.
+gateway_do_start() {
+  if [[ "$(uname -s)" == "Linux" ]] && \
+     command -v systemctl &>/dev/null && \
+     systemctl --user list-unit-files openclaw-gateway.service 2>/dev/null | grep -q openclaw-gateway; then
+    systemctl --user start openclaw-gateway.service 2>/dev/null
+  else
+    openclaw gateway start 2>/dev/null
+  fi
+}
+
+gateway_do_restart() {
+  if [[ "$(uname -s)" == "Linux" ]] && \
+     command -v systemctl &>/dev/null && \
+     systemctl --user is-active openclaw-gateway.service >/dev/null 2>&1; then
+    systemctl --user restart openclaw-gateway.service 2>/dev/null
+  else
+    openclaw gateway restart 2>/dev/null
+  fi
+}
+
 echo ""
 echo -e "${BLD}OpenClaw Self-Heal${RST}"
 echo "────────────────────────────────"
@@ -107,7 +129,7 @@ echo ""
 echo -e "${BLD}[1] Gateway process${RST}"
 if ! gateway_running; then
   log_info "Gateway not running — attempting start"
-  if openclaw gateway start 2>/dev/null; then
+  if gateway_do_start; then
     sleep 3
     if gateway_running; then
       log_fixed "Gateway started"
@@ -338,7 +360,7 @@ echo ""
 echo -e "${BLD}[6] Applying changes${RST}"
 if [[ ${#FIXED[@]} -gt 0 ]] && [[ "$RESTARTED" == "false" ]]; then
   log_info "Restarting gateway to apply fixes"
-  openclaw gateway restart 2>/dev/null && \
+  gateway_do_restart && \
     log_fixed "Gateway restarted" || \
     log_broken "Gateway restart failed — try: openclaw gateway restart"
   RESTARTED=true

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# openclaw watchdog.sh — runs every 5 minutes via LaunchAgent
-# Monitors gateway health and auto-heals common issues
+# openclaw watchdog.sh — runs every 5 minutes
+# Linux: via systemd user timer (openclaw-watchdog.timer)
+# macOS: via LaunchAgent
+# Cron fallback: */5 * * * * bash /path/to/watchdog.sh
 # Install with: bash watchdog-install.sh
 
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" && source "$LIB_DIR/lib.sh"
@@ -176,6 +178,17 @@ os.replace(tmp, state_file)
 " "$STATE_FILE" "$HEALTH_FAILURE_WINDOW" 2>/dev/null || true
 }
 
+# On Linux, prefer restarting the systemd unit so the service manager tracks
+# the new PID and restart policy stays consistent. Falls back to the openclaw
+# CLI when the unit is not present (cron installs, non-systemd).
+gateway_restart() {
+  if [[ "$(uname -s)" == "Linux" ]] && is_systemd_unit_active "openclaw-gateway.service" 2>/dev/null; then
+    systemctl --user restart openclaw-gateway.service 2>>"$LOG_FILE"
+  else
+    openclaw gateway restart 2>>"$LOG_FILE"
+  fi
+}
+
 gateway_pid() {
   pgrep -x openclaw-gateway 2>/dev/null | head -1 || \
     pgrep -f 'openclaw.*gateway' 2>/dev/null | head -1 || \
@@ -295,7 +308,7 @@ if [[ "$HTTP_STATUS" == "200" ]] || [[ "$HTTP_STATUS" == "401" ]]; then
       else
         log "Agent-layer recovery: restarting gateway (attempt $((RESTART_COUNT + 1))/$MAX_RESTART_ATTEMPTS in window)"
         record_restart
-        openclaw gateway restart 2>&1 | tee -a "$LOG_FILE" || log "gateway restart command failed"
+        gateway_restart 2>&1 | tee -a "$LOG_FILE" || log "gateway restart command failed"
       fi
     fi
     exit 1
@@ -332,13 +345,7 @@ log "Restart attempts in last ${RESTART_ATTEMPT_WINDOW}s: $RESTART_COUNT"
 
 if [[ "$RESTART_COUNT" -ge "$MAX_RESTART_ATTEMPTS" ]]; then
   log "ERROR: Max restart attempts ($MAX_RESTART_ATTEMPTS) reached in window. Escalating."
-
-  # macOS notification
-  if command -v osascript &>/dev/null; then
-    osascript -e 'display notification "OpenClaw gateway is down and not recovering. Manual intervention needed." with title "OpenClaw Watchdog" subtitle "Restart limit reached" sound name "Basso"' 2>/dev/null || true
-  fi
-
-  # Log escalation for potential alerting integrations
+  send_notification "OpenClaw Watchdog" "Gateway is down and not recovering. Manual intervention needed. Check: tail -50 ~/.openclaw/logs/gateway.err.log"
   log "ESCALATION: Gateway down, $RESTART_COUNT restarts attempted. Check: tail -50 ~/.openclaw/logs/gateway.err.log"
   exit 1
 fi
@@ -347,8 +354,7 @@ fi
 log "Attempting gateway restart (attempt $((RESTART_COUNT + 1)) of $MAX_RESTART_ATTEMPTS)"
 record_restart
 
-openclaw gateway restart 2>>"$LOG_FILE" &
-RESTART_PID=$!
+gateway_restart &
 sleep 8
 
 # Verify it came back up
@@ -356,10 +362,7 @@ HTTP_STATUS_AFTER=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 15 "$GATE
 
 if [[ "$HTTP_STATUS_AFTER" == "200" ]] || [[ "$HTTP_STATUS_AFTER" == "401" ]]; then
   log "Gateway recovered (HTTP $HTTP_STATUS_AFTER)"
-  # macOS notification on recovery
-  if command -v osascript &>/dev/null; then
-    osascript -e 'display notification "OpenClaw gateway restarted successfully." with title "OpenClaw Watchdog" subtitle "Recovered"' 2>/dev/null || true
-  fi
+  send_notification "OpenClaw Watchdog" "Gateway restarted successfully."
   maybe_run_session_monitor
   exit 0
 fi

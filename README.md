@@ -16,8 +16,9 @@ Tested against OpenClaw `2026.5.4`.
 | `scripts/heal.sh` | One-shot auto-fix for the most common gateway issues |
 | `scripts/post-update.sh` | Explicit post-update orchestrator: check-update, heal, workspace reconcile, security scan, final health check, policy-guard sentinel trigger |
 | `scripts/watchdog.sh` | Runs every 5 min, restarts gateway if down, escalates after 3 failures |
-| `scripts/watchdog-install.sh` | Installs the watchdog as a macOS LaunchAgent |
-| `scripts/watchdog-uninstall.sh` | Removes the LaunchAgent |
+| `scripts/watchdog-install.sh` | Installs the watchdog — systemd user timer on Linux, LaunchAgent on macOS |
+| `scripts/watchdog-uninstall.sh` | Removes the watchdog (detects platform automatically) |
+| `scripts/linux-prereqs.sh` | Install Ubuntu 22 dependencies and enable user lingering |
 | `scripts/check-update.sh` | Detects version changes, explains broken config, auto-fix with `--fix` |
 | `scripts/health-check.sh` | Declarative URL/process health checks; auto-generates targets file on first run |
 | `scripts/security-scan.sh` | Config hardening and credential exposure scan (0–100 score); skips bulky runtime/log/session history unless `--include-sessions` is passed |
@@ -42,13 +43,15 @@ Tested against OpenClaw `2026.5.4`.
 | `curl` | watchdog.sh, health-check.sh HTTP checks |
 | `openssl` | heal.sh auth token generation |
 | `rg` (ripgrep) | session-search.sh |
-| `launchctl` + macOS | watchdog-install.sh (LaunchAgent) |
-| `osascript` | watchdog.sh macOS notifications (optional) |
+| `systemd` (Linux) | watchdog-install.sh systemd timer |
+| `notify-send` (optional) | desktop notifications on Linux when DISPLAY is set |
+| `launchctl` + macOS | watchdog-install.sh LaunchAgent |
 
-**Linux:** `watchdog-install.sh` is macOS only. Use cron instead:
+**Ubuntu 22 LTS:** run the prerequisites installer once before anything else:
 ```bash
-*/5 * * * * bash /path/to/scripts/watchdog.sh >> ~/.openclaw/logs/watchdog.log 2>&1
+bash scripts/linux-prereqs.sh
 ```
+This installs `python3`, `curl`, `openssl`, `ripgrep`, `libnotify-bin`, `jq`, and enables user lingering for boot-time service startup.
 
 ## Minimum version
 
@@ -60,35 +63,63 @@ openclaw --version
 
 ## Quick start
 
+### Linux (Ubuntu 22 LTS)
+
+```bash
+# 1. Install system prerequisites (once)
+bash scripts/linux-prereqs.sh
+
+# 2. Install openclaw
+curl -fsSL https://openclaw.ai/install.sh | bash
+
+# 3. One-time heal pass
+bash scripts/heal.sh
+
+# 4. Install always-on watchdog (systemd user timer)
+bash scripts/watchdog-install.sh
+
+# 5. Verify watchdog is running
+systemctl --user status openclaw-watchdog.timer
+
+# 6. View logs
+tail -f ~/.openclaw/logs/watchdog.log
+journalctl --user -u openclaw-watchdog.service -f   # journal view
+
+# 7. After every OpenClaw update, run the post-update hook
+bash scripts/post-update.sh
+
+# 8. Run health checks — targets file is auto-generated on first run
+bash scripts/health-check.sh --verbose
+
+# 9. Audit workspace git protection
+bash scripts/workspace-git-audit.sh --show-cron
+```
+
+### macOS
+
 ```bash
 # 1. One-time heal pass
 bash scripts/heal.sh
 
-# 2. After every OpenClaw update, run the explicit post-update hook
+# 2. After every OpenClaw update
 bash scripts/post-update.sh
 
-#    The hook also runs the VPS workspace reconcile script when present and
-#    touches ~/.openclaw/state/policy-guard.trigger so a VPS can react through
-#    openclaw-policy-guard.path after the update.
+# 3. Install always-on watchdog (LaunchAgent)
+bash scripts/watchdog-install.sh
 
-# 3. If you only want the update triage report:
+# 4. View watchdog log
+tail -f ~/.openclaw/logs/watchdog.log
+```
+
+### Common (both platforms)
+
+```bash
+# Update triage only:
 bash scripts/check-update.sh        # report only
 bash scripts/check-update.sh --fix  # report + auto-fix
 
-# 4. Install always-on watchdog (macOS)
-bash scripts/watchdog-install.sh
-
-# 5. View watchdog log
-tail -f ~/.openclaw/logs/watchdog.log
-
-# 6. View incident history
+# View incident history
 cat ~/.openclaw/logs/heal-incidents.jsonl
-
-# 7. Run health checks — targets file is auto-generated on first run
-bash scripts/health-check.sh --verbose
-
-# 8. Audit workspace git protection and print cron setup suggestions
-bash scripts/workspace-git-audit.sh --show-cron
 ```
 
 ### Gateway port
@@ -117,16 +148,18 @@ bash scripts/remediation-board.sh list
 
 ## Watchdog escalation model
 
-1. **Tier 1** — HTTP ping every 5 min (LaunchAgent or cron)
+1. **Tier 1** — HTTP ping every 5 min (systemd timer on Linux, LaunchAgent on macOS, cron fallback)
 2. **Tier 2** — Gateway restart + `heal.sh` if simple restart fails
-3. **Tier 3** — macOS notification after 3 failed attempts in 15 min
+3. **Tier 3** — Notification after 3 failed attempts in 15 min (journald warning on Linux, desktop popup on macOS/desktop)
 
 ## Platform support
 
-| Platform | heal.sh | watchdog | LaunchAgent |
-|----------|---------|----------|-------------|
-| macOS | ✓ | ✓ | ✓ |
-| Linux | ✓ | ✓ (via cron) | ✗ |
+| Platform | heal.sh | watchdog | systemd timer | LaunchAgent |
+|----------|---------|----------|---------------|-------------|
+| Ubuntu 22 LTS | ✓ | ✓ | ✓ | ✗ |
+| Linux (other) | ✓ | ✓ (cron fallback) | ✓ if systemd | ✗ |
+| macOS | ✓ | ✓ | ✗ | ✓ |
+| Windows WSL2 | ✓ | ✓ (cron) | ✗ | ✗ |
 | Windows WSL2 | ✓ | ✓ (via cron) | ✗ |
 
 ## Viewing logs

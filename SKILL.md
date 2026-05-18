@@ -21,15 +21,16 @@ You are an expert OpenClaw administrator. Use the scripts below to diagnose and 
 
 All scripts live in `scripts/` relative to this skill (typically `~/.openclaw/skills/openclaw-ops/scripts/`). Always use that full path when suggesting commands to users.
 
-On Knox's machine, the canonical ops checkout is `/Users/knox/Developer/openclaw-ops`. Prefer those scripts over the installed skill snapshot under `~/.agents/skills/openclaw-ops`, which can lag behind. If the two differ, treat the Developer checkout as authoritative and sync/reinstall the skill snapshot as follow-up work.
+If the user has a local development checkout of this repo, prefer that over the installed skill snapshot under `~/.openclaw/skills/openclaw-ops/`, which may lag behind. Ask the user for their checkout path if unclear, then use those scripts.
 
 | Script | When to use |
 |--------|-------------|
 | `heal.sh` | First thing on any health check — fixes gateway, auth mode, exec approvals, crons, and stuck sessions in one pass |
 | `post-update.sh` | Run after `openclaw update` — orchestrates check-update, heal, workspace reconcile, security scan, and final health check in sequence |
-| `watchdog.sh` | Continuous monitoring; run every 5 min via LaunchAgent. HTTP health check → auto-restart → escalation after 3 failures |
-| `watchdog-install.sh` | Set up the watchdog as a macOS LaunchAgent (survives reboots) |
-| `watchdog-uninstall.sh` | Remove the LaunchAgent |
+| `watchdog.sh` | Continuous monitoring; run every 5 min via systemd timer (Linux) or LaunchAgent (macOS). HTTP health check → auto-restart → escalation after 3 failures |
+| `watchdog-install.sh` | Install the watchdog — systemd user timer on Linux, LaunchAgent on macOS. Enables user lingering on Linux for boot-time startup |
+| `watchdog-uninstall.sh` | Remove the watchdog (detects platform automatically) |
+| `linux-prereqs.sh` | Ubuntu 22 LTS only — install system dependencies and enable user lingering |
 | `check-update.sh` | After a version change — detects breaking config changes, explains them; `--fix` to auto-repair |
 | `health-check.sh` | URL/process health checks for gateway-adjacent services; copy `templates/health-targets.conf.example` first |
 | `session-monitor.sh` | Agent is alive but misbehaving — retry loops, hangs, auth loops, noisy failures |
@@ -153,23 +154,25 @@ After any version upgrade, run `check-update.sh` to catch breaking config change
 Use this sequence when the user asks whether OpenClaw is working:
 
 ```bash
-bash /Users/knox/Developer/openclaw-ops/scripts/heal.sh
-bash /Users/knox/Developer/openclaw-ops/scripts/daily-digest.sh
+bash scripts/heal.sh
+bash scripts/daily-digest.sh
 openclaw gateway status
-curl -sS -i http://127.0.0.1:51361/ | head -20
+curl -sS -i http://127.0.0.1:$(openclaw config get gateway.port 2>/dev/null || echo 18789)/ | head -20
 openclaw memory status --deep
 CODEX_HOME=~/.openclaw/codex-home codex exec --skip-git-repo-check --sandbox read-only --color never "respond with: alive" </dev/null
 tail -30 ~/.openclaw/logs/watchdog.log
 tail -80 ~/.openclaw/logs/gateway.err.log
+# Linux: also check journal
+journalctl --user -u openclaw-gateway.service --since "1 hour ago" --no-pager 2>/dev/null || true
 ```
 
 Interpretation rules:
 
-- If `heal.sh` says `Gateway failed to start`, immediately re-check with `openclaw gateway status` and an HTTP probe. `heal.sh` can retain an early failed probe in its final summary even after launchd has restarted the gateway successfully.
-- If `daily-digest.sh` reports auth errors for Codex-backed agents, verify with the Codex CLI command above before calling it auth. Add `</dev/null` to avoid `codex exec` waiting forever on stdin (`Reading additional input from stdin...`). If direct Codex still times out but `openclaw agent --agent knox --session-id health-probe-$(date +%s) --message "Health probe. Reply exactly: OPENCLAW_ALIVE" --thinking low --timeout 240 --json` succeeds, treat the agent runtime as healthy and the direct CLI probe as a separate Codex CLI/harness issue. `codex app-server client is closed` is a bundled Codex subprocess failure, not an OpenClaw auth failure.
-- If `openclaw gateway status` reports an entrypoint mismatch, run critical probes through the same entrypoint launchd is using before trusting CLI-only failures. Example: `/opt/homebrew/opt/node/bin/node /opt/homebrew/lib/node_modules/openclaw/dist/index.js memory status --deep`.
+- If `heal.sh` says `Gateway failed to start`, immediately re-check with `openclaw gateway status` and an HTTP probe. On Linux, also check `systemctl --user status openclaw-gateway.service` — systemd may have restarted it after `heal.sh` probed.
+- If `daily-digest.sh` reports auth errors for Codex-backed agents, verify with the Codex CLI command above before calling it auth. Add `</dev/null` to avoid `codex exec` waiting forever on stdin (`Reading additional input from stdin...`). If direct Codex still times out but `openclaw agent --agent <name> --session-id health-probe-$(date +%s) --message "Health probe. Reply exactly: OPENCLAW_ALIVE" --thinking low --timeout 240 --json` succeeds, treat the agent runtime as healthy and the direct CLI probe as a separate Codex CLI/harness issue. `codex app-server client is closed` is a bundled Codex subprocess failure, not an OpenClaw auth failure.
+- If `openclaw gateway status` reports an entrypoint mismatch on Linux, check `systemctl --user cat openclaw-gateway.service` to see the exact binary the unit uses, then run probes through that path before trusting CLI-only failures.
 - If `openclaw channels status --probe` says `Gateway event loop degraded` but every channel still reports `works` and the watchdog stays HTTP 200, treat it as a load signal, not an outage. Check `openclaw status --deep`, active sessions, and recent `liveness warning` lines before restarting.
-- If `openclaw doctor` warns that `openai-codex/*` refs resolve with runtime `pi`, do not automatically “fix” it. On Knox's setup this can be intentional for Codex OAuth/subscription auth through PI. Use `bash scripts/codex-perf-check.sh`; only run `--fix` if the user wants native Codex app-server and accepts the model/runtime migration.
+- If `openclaw doctor` warns that `openai-codex/*` refs resolve with runtime `pi`, do not automatically “fix” it. This can be intentional for Codex OAuth/subscription auth through PI. Use `bash scripts/codex-perf-check.sh`; only run `--fix` if the user wants native Codex app-server and accepts the model/runtime migration.
 - A green HTTP/WebSocket gateway check is not enough. Also check channels, stuck sessions, watchdog events, Codex backend health, and memory search readiness.
 - For BlueBubbles, use `~/.openclaw/logs/bluebubbles-watchdog.log`; it is alert-only and should not be expected to restart the gateway.
 
@@ -217,7 +220,7 @@ for plist in \
   "$HOME/Library/LaunchAgents/ai.openclaw.gateway-watchdog.plist" \
   "$HOME/Library/LaunchAgents/co.bestself.openclaw.skills-index.plist" \
   "$HOME/Library/LaunchAgents/com.bestself.paperclip-openclaw-ops.plist" \
-  "$HOME/Library/LaunchAgents"/com.knox.openclaw-*.plist
+  "$HOME/Library/LaunchAgents"/com.*.openclaw-*.plist
 do
   [[ -e "$plist" ]] || continue
   label="$(/usr/libexec/PlistBuddy -c 'Print :Label' "$plist" 2>/dev/null || basename "$plist" .plist)"
@@ -234,7 +237,7 @@ After quarantine, verify `launchctl list` shows only `ai.openclaw.gateway` for O
 If the failure was `codex app-server client is closed`, do not treat the tapback/ack as proof the agent is working. Check the session transcript and queue state:
 
 ```bash
-openclaw sessions --agent knox --active 15 --json
+openclaw sessions --agent <agent-name> --active 15 --json
 tail -80 ~/.openclaw/logs/gateway.err.log | rg 'codex app-server|stuck session|state=processing|queueDepth'
 ```
 
@@ -363,9 +366,9 @@ openclaw security audit --deep
 
 Run `security-scan.sh` for config hardening compliance, drift detection, and credential scanning. Run `skill-audit.sh` before installing any third-party skill.
 
-Security-scan caveats on Knox's machine:
-- The scanner intentionally scans config-like files for leaked secrets, but it skips permission hardening for installed plugin/runtime package contents because package manifests and fixtures are normally 644. Treat permission findings under `workspace/`, `credentials/`, auth-state, or LaunchAgent/systemd files as higher signal than plugin source files.
-- Prefer `OPENCLAW_SECURITY_SCAN_MAX_FINDINGS=20 bash /Users/knox/Developer/openclaw-ops/scripts/security-scan.sh` for readable output.
+Security-scan caveats:
+- The scanner intentionally scans config-like files for leaked secrets, but it skips permission hardening for installed plugin/runtime package contents because package manifests and fixtures are normally 644. Treat permission findings under `workspace/`, `credentials/`, auth-state, or systemd unit files (Linux) / LaunchAgent plists (macOS) as higher signal than plugin source files.
+- Prefer `OPENCLAW_SECURITY_SCAN_MAX_FINDINGS=20 bash scripts/security-scan.sh` for readable output.
 - Use `--include-sessions` only for a deep forensic pass; default mode skips bulky logs, session transcripts, runtime deps, and canvas artifacts to avoid slow/noisy scans.
 
 **Recommended settings:**

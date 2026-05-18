@@ -336,9 +336,9 @@ PY
 
 digest="$(printf '%s\n' "$digest" | sanitize_sensitive)"
 
-if [[ "$SEND_NOTIFY" -eq 1 && -n "$digest" ]] && command -v osascript >/dev/null 2>&1; then
-  summary="$(printf '%s\n' "$digest" | head -n 3 | tr '\n' ' ' | sed 's/"/\\"/g')"
-  osascript -e "display notification \"$summary\" with title \"OpenClaw Daily Digest\"" >/dev/null 2>&1 || true
+if [[ "$SEND_NOTIFY" -eq 1 && -n "$digest" ]]; then
+  summary="$(printf '%s\n' "$digest" | head -n 3 | tr '\n' ' ')"
+  send_notification "OpenClaw Daily Digest" "$summary"
 fi
 
 printf '%s\n' "$digest"

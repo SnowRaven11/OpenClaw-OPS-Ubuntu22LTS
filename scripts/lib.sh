@@ -242,9 +242,52 @@ except:
 }
 
 # ── SHA-256 hash (cross-platform) ──────────────────────────────────────────
+# Prefers sha256sum (standard on Ubuntu/Debian), falls back to shasum (macOS),
+# then openssl as a last resort.
 file_sha256() {
   local file="$1"
+  sha256sum "$file" 2>/dev/null | awk '{print $1}' || \
   shasum -a 256 "$file" 2>/dev/null | awk '{print $1}' || \
   openssl dgst -sha256 "$file" 2>/dev/null | awk '{print $NF}' || \
   echo "error"
+}
+
+# ── systemd user session detection ─────────────────────────────────────────
+# Returns 0 if a systemd user session is reachable, 1 otherwise.
+is_systemd_available() {
+  systemctl --user status >/dev/null 2>&1 || \
+  systemctl --user list-units >/dev/null 2>&1
+}
+
+# Returns 0 if the named systemd user unit exists and is active.
+is_systemd_unit_active() {
+  local unit="$1"
+  systemctl --user is-active "$unit" >/dev/null 2>&1
+}
+
+# ── Platform-aware notifications ───────────────────────────────────────────
+# Usage: send_notification "Title" "Body text"
+# Writes to journald (always on Linux), desktop popup when available,
+# and falls back to a plain log line. Never fatal.
+send_notification() {
+  local title="${1:-OpenClaw}"
+  local body="${2:-}"
+
+  case "$(uname -s)" in
+    Linux)
+      # Structured journal entry — always available when systemd is running
+      if command -v systemd-cat &>/dev/null; then
+        echo "$title: $body" | systemd-cat -t openclaw-watchdog -p warning 2>/dev/null || true
+      fi
+      # Desktop notification when a display session is present
+      if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v notify-send &>/dev/null; then
+        notify-send --urgency=critical "$title" "$body" 2>/dev/null || true
+      fi
+      ;;
+    Darwin)
+      if command -v osascript &>/dev/null; then
+        osascript -e "display notification \"$body\" with title \"$title\" sound name \"Basso\"" 2>/dev/null || true
+      fi
+      ;;
+  esac
 }

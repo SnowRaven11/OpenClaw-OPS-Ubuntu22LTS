@@ -4,7 +4,7 @@ This doc explains the design decisions behind openclaw-ops that aren't obvious f
 
 ## Single-owner restart policy
 
-**Only one process is authorized to restart the gateway.** That process is `watchdog.sh` (typically installed as a `LaunchAgent` on macOS or a `systemd` timer on Linux). All other monitoring scripts in this repo — and any monitoring scripts you add — should **alert and log only**, never call `openclaw gateway restart`.
+**Only one process is authorized to restart the gateway.** That process is `watchdog.sh` (installed as a systemd user timer on Linux, or a LaunchAgent on macOS). All other monitoring scripts in this repo — and any monitoring scripts you add — should **alert and log only**, never call `openclaw gateway restart`.
 
 ### Why this matters
 
@@ -46,6 +46,41 @@ When a new failure mode appears in `~/.openclaw/logs/gateway.err.log`, the tempt
 4. Tune the threshold in `check_agent_layer_health()` against historical logs before committing — verify it doesn't false-trigger on a normal day.
 
 This keeps all agent-layer detection in one place that an operator can reason about. Use the **"Report a new failure pattern"** issue template in `.github/ISSUE_TEMPLATE/new-failure-pattern.md` to capture the symptoms, log signature, and recovery for any new pattern.
+
+## Linux (Ubuntu 22 LTS) service architecture
+
+On Ubuntu 22, openclaw-ops runs two systemd user units installed by `watchdog-install.sh`:
+
+```
+~/.config/systemd/user/
+  openclaw-gateway.service   # manages the gateway process (Restart=no)
+  openclaw-watchdog.service  # oneshot: runs watchdog.sh each timer tick
+  openclaw-watchdog.timer    # fires watchdog.service every 5 minutes
+```
+
+**Gateway service (`Restart=no`)** — the watchdog owns restart authority (see above). Setting `Restart=on-failure` would race with the watchdog's rate-limit counter and break the safety brake.
+
+**Watchdog timer** — uses `OnCalendar=*:0/5` with `Persistent=true`. The `Persistent` flag means a missed tick (system was suspended) fires once on resume rather than being silently skipped.
+
+**Lingering** — for headless/server installs, `loginctl enable-linger $USER` is required so user units start at boot without a login session. `watchdog-install.sh` and `linux-prereqs.sh` both set this automatically.
+
+### Log paths on Linux
+
+| Source | Command |
+|--------|---------|
+| Gateway file log | `tail -f ~/.openclaw/logs/gateway.err.log` |
+| Gateway journal | `journalctl --user -u openclaw-gateway.service -f` |
+| Watchdog file log | `tail -f ~/.openclaw/logs/watchdog.log` |
+| Watchdog journal | `journalctl --user -u openclaw-watchdog.service -f` |
+| All openclaw units | `journalctl --user -t openclaw-watchdog -f` |
+
+### Restart command on Linux
+
+`watchdog.sh` calls `systemctl --user restart openclaw-gateway.service` when the unit exists, so the service manager tracks the new PID. It falls back to `openclaw gateway restart` when the unit is absent (cron fallback installs).
+
+### Notifications on Linux
+
+`send_notification()` in `lib.sh` writes a `warning`-priority entry to journald via `systemd-cat` on every alert. If `DISPLAY` or `WAYLAND_DISPLAY` is set and `notify-send` is available, a desktop popup is also sent. On headless servers, journal entries are the primary alert surface — integrate with a log-forwarding tool (Loki, Elastic, etc.) to get paged on escalations.
 
 ## State files at a glance
 

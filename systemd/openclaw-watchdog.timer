@@ -1,0 +1,17 @@
+# openclaw-watchdog.timer — fires openclaw-watchdog.service every 5 minutes
+#
+# Install: bash scripts/watchdog-install.sh
+
+[Unit]
+Description=OpenClaw Watchdog Timer (every 5 minutes)
+Documentation=https://docs.openclaw.ai
+
+[Timer]
+# Fire at :00, :05, :10, … of every hour
+OnCalendar=*:0/5
+# If a tick was missed (system was off), run once on next boot
+Persistent=true
+Unit=openclaw-watchdog.service
+
+[Install]
+WantedBy=timers.target

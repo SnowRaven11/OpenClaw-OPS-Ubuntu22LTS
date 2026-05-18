@@ -1,0 +1,33 @@
+# openclaw-gateway.service — systemd user service for OpenClaw gateway
+#
+# Install: bash scripts/watchdog-install.sh
+# The watchdog timer owns restart authority (Restart=no here is intentional).
+# See scripts/watchdog.sh and docs/architecture.md.
+#
+# To install manually:
+#   cp systemd/openclaw-gateway.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now openclaw-gateway.service
+#
+# For headless servers (start at boot without login):
+#   loginctl enable-linger $USER
+
+[Unit]
+Description=OpenClaw Gateway
+After=network.target
+Documentation=https://docs.openclaw.ai
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env openclaw gateway start --foreground
+ExecStop=/usr/bin/env openclaw gateway stop
+Restart=no
+StandardOutput=append:%h/.openclaw/logs/gateway.log
+StandardError=append:%h/.openclaw/logs/gateway.err.log
+Environment=HOME=%h
+# Watchdog timer calls `systemctl --user restart openclaw-gateway` when restart
+# is warranted. Do not set Restart=on-failure here or it will race with the
+# watchdog's restart-rate-limit logic.
+
+[Install]
+WantedBy=default.target
