@@ -246,6 +246,47 @@ else
 fi
 EOF
   chmod +x "$TEST_ROOT/bin/ps"
+
+  # Fake systemctl — units are not installed by default in the test environment.
+  # Use env vars to simulate specific states:
+  #   SYSTEMCTL_GATEWAY_ACTIVE_RC  (default 3 = inactive)
+  #   SYSTEMCTL_WATCHDOG_ACTIVE_RC (default 3 = inactive)
+  #   SYSTEMCTL_WATCHDOG_ENABLED_RC (default 1 = not found)
+  cat >"$TEST_ROOT/bin/systemctl" <<'EOF'
+#!/usr/bin/env bash
+# Collect all args into a single string for matching
+_args=""
+for _a in "$@"; do _args="$_args $_a"; done
+_args="${_args# }"
+
+case "$_args" in
+  "--user is-active openclaw-gateway.service")
+    exit "${SYSTEMCTL_GATEWAY_ACTIVE_RC:-3}" ;;
+  "--user is-active openclaw-watchdog.timer")
+    exit "${SYSTEMCTL_WATCHDOG_ACTIVE_RC:-3}" ;;
+  "--user is-enabled openclaw-watchdog.timer")
+    exit "${SYSTEMCTL_WATCHDOG_ENABLED_RC:-1}" ;;
+  "--user list-unit-files openclaw-gateway.service")
+    if [[ "${SYSTEMCTL_GATEWAY_ACTIVE_RC:-3}" -eq 0 ]]; then
+      echo "openclaw-gateway.service enabled enabled"
+      exit 0
+    fi
+    exit 1 ;;
+  "--user restart openclaw-gateway.service")
+    if [[ -n "${OPENCLAW_CALL_LOG:-}" ]]; then
+      printf 'systemctl|restart|openclaw-gateway.service\n' >>"$OPENCLAW_CALL_LOG"
+    fi
+    exit 0 ;;
+  "--user daemon-reload"|"--user start openclaw-watchdog.service"|\
+  "--user stop openclaw-watchdog.timer"|\
+  "--user enable --now openclaw-watchdog.timer"|\
+  "--user status"*)
+    exit 0 ;;
+  *)
+    exit 0 ;;
+esac
+EOF
+  chmod +x "$TEST_ROOT/bin/systemctl"
 }
 
 install_fixture() {
@@ -379,11 +420,13 @@ Description=Deep worker
 Environment=OPENCLAW_GATEWAY_TOKEN=sk-1234567890abcdefghijklmn
 EOF
 
+  # Real secret here so the credential scan still finds this file even though
+  # *.service files are now exempt from the 600 permission check.
   cat >"$global_systemd_dir/nested/system/global-worker.service" <<'EOF'
 [Unit]
 Description=Global worker
 [Service]
-Environment=OPENCLAW_GATEWAY_TOKEN=***
+Environment=OPENCLAW_GATEWAY_TOKEN=sk-1234567890abcdefghijklmn
 EOF
 
   cat >"$HOME/.openclaw/agents/shared/plugins/example-plugin/.claude-plugin/plugin.json" <<'EOF'
@@ -399,11 +442,17 @@ EOF
 
   local output
   output="$(bash "$ROOT_DIR/scripts/security-scan.sh" 2>&1 || true)"
+  # Credential scan: secrets in nested files across all scan roots
   assert_contains "$output" "deep-secret.jsonl"
   assert_contains "$output" "deep-worker.service"
   assert_contains "$output" "global-worker.service"
+  # Permission check: .jsonl file with 777 is flagged; .service/.timer files are
+  # exempt (systemd requires them to be world-readable) so they are not reported
   assert_contains "$output" "has permissions"
+  assert_not_contains "$output" "deep-worker.service has permissions"
+  assert_not_contains "$output" "global-worker.service has permissions"
   assert_contains "$output" "Skipped 1 plugin/runtime source file(s) for permission hardening"
+  assert_contains "$output" "Skipped 2 systemd unit file(s) from permission hardening"
   assert_not_contains "$output" "plugin.json has permissions"
 }
 
@@ -503,7 +552,7 @@ EOF
   assert_contains "$output" "All health checks passed"
 }
 
-test_health_check_falls_back_to_etime_on_macos() {
+test_health_check_falls_back_to_etime_when_etimes_unsupported() {
   setup_fake_env
   trap teardown_fake_env RETURN
 
@@ -1563,7 +1612,7 @@ run_test test_heal_incident_logging_no_longer_embeds_shell_generated_python
 run_test test_security_scan_detects_nested_files_and_permissions
 run_test test_get_openclaw_version_normalizes_missing_v_prefix
 run_test test_health_check_passes_for_valid_targets
-run_test test_health_check_falls_back_to_etime_on_macos
+run_test test_health_check_falls_back_to_etime_when_etimes_unsupported
 run_test test_security_scan_redacts_secret_values
 run_test test_lib_time_and_sanitization_helpers
 run_test test_incident_lifecycle_and_dedup

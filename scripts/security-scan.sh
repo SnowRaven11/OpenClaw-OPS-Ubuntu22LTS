@@ -415,17 +415,18 @@ run_credentials() {
   # not credential stores, and chmodding them creates noisy false positives.
   local perm_issues=0
   local perm_reported=0
-  local perm_skipped=0
+  local perm_skipped_plugin=0
+  local perm_skipped_systemd=0
   for cfg_file in "${cfg_files[@]}"; do
     case "$cfg_file" in
       */agents/shared/plugins/*|*/extensions/*|*/plugins/*|*/plugin-runtime-deps/*|*/node_modules/*)
-        ((perm_skipped++)) || true
+        ((perm_skipped_plugin++)) || true
         continue
         ;;
       *.service|*.timer)
         # systemd unit files are legitimately 644 (world-readable is required
         # for systemctl to load them). Credential content is still scanned above.
-        ((perm_skipped++)) || true
+        ((perm_skipped_systemd++)) || true
         continue
         ;;
     esac
@@ -447,8 +448,11 @@ run_credentials() {
       fi
     fi
   done
-  if (( perm_skipped > 0 )); then
-    log_ok "Skipped $perm_skipped plugin/runtime source file(s) for permission hardening"
+  if (( perm_skipped_plugin > 0 )); then
+    log_ok "Skipped $perm_skipped_plugin plugin/runtime source file(s) for permission hardening"
+  fi
+  if (( perm_skipped_systemd > 0 )); then
+    log_ok "Skipped $perm_skipped_systemd systemd unit file(s) from permission hardening (644 is expected)"
   fi
   if (( perm_issues > perm_reported )); then
     log_error "  ... suppressed $((perm_issues - perm_reported)) additional permission finding(s); set OPENCLAW_SECURITY_SCAN_MAX_FINDINGS to raise the limit"
