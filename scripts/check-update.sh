@@ -33,6 +33,16 @@ bad()   { echo -e "${RED}[✗]${RST} $1"; }
 info()  { echo -e "${CYN}[~]${RST} $1"; }
 fixed() { echo -e "${GRN}[FIXED]${RST} $1"; }
 
+# Print the right gateway restart command for this platform.
+# On Linux, prefer systemctl when the gateway is a managed unit.
+restart_hint() {
+  if [[ "$(uname -s)" == "Linux" ]] && is_systemd_unit_active "openclaw-gateway.service" 2>/dev/null; then
+    echo "  systemctl --user restart openclaw-gateway.service"
+  else
+    echo "  openclaw gateway restart"
+  fi
+}
+
 echo ""
 echo -e "${BLD}OpenClaw Update Check${RST}"
 echo "────────────────────────────────"
@@ -309,20 +319,20 @@ elif [[ "$FIX_MODE" == "true" ]]; then
     bad "Applied $FIXES_APPLIED fix(es), but $FIXES_FAILED fix(es) FAILED — see errors above."
     echo ""
     echo -e "Run ${BLD}bash heal.sh${RST} to retry, or apply the fixes manually using the commands shown."
-    echo "Then restart the gateway: openclaw gateway restart"
+    echo -n "Then restart the gateway: " && restart_hint
     exit 1
   elif (( FIXES_APPLIED == 0 )); then
     warn "$ISSUES_FOUND issue(s) found, but no fixes were applied (check that --fix code paths covered them)."
     exit 1
   else
     echo -e "${GRN}Applied $FIXES_APPLIED fix(es). Restart the gateway to apply:${RST}"
-    echo "  openclaw gateway restart"
+    restart_hint
   fi
 else
   warn "$ISSUES_FOUND issue(s) found from this version's breaking changes."
   echo ""
   echo -e "Run with ${BLD}--fix${RST} to auto-apply safe fixes:"
   echo "  bash $(basename "$0") --fix"
-  echo "  openclaw gateway restart"
+  restart_hint
 fi
 echo ""

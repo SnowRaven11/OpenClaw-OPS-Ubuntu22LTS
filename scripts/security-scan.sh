@@ -131,7 +131,7 @@ run_compliance() {
 
   # ── 1. Gateway binding (-20) ─────────────────────────────────────────────
   echo ""
-  echo -e "${BLD}[1/7] Gateway binding${RST}"
+  echo -e "${BLD}[1/8] Gateway binding${RST}"
   BIND=$(openclaw config get gateway.bind 2>/dev/null || echo "unknown")
   if [[ "$BIND" == "loopback" ]] || [[ "$BIND" == "127.0.0.1" ]]; then
     pass "gateway.bind = $BIND (loopback only)"
@@ -145,7 +145,7 @@ run_compliance() {
 
   # ── 2. Auth mode (-15) ───────────────────────────────────────────────────
   echo ""
-  echo -e "${BLD}[2/7] Auth mode${RST}"
+  echo -e "${BLD}[2/8] Auth mode${RST}"
   AUTH=$(openclaw config get gateway.auth.mode 2>/dev/null || echo "unknown")
   if [[ "$AUTH" == "token" ]] || [[ "$AUTH" == "trusted-proxy" ]]; then
     pass "gateway.auth.mode = $AUTH"
@@ -159,7 +159,7 @@ run_compliance() {
 
   # ── 3. Sandbox mode (-15) ────────────────────────────────────────────────
   echo ""
-  echo -e "${BLD}[3/7] Sandbox mode${RST}"
+  echo -e "${BLD}[3/8] Sandbox mode${RST}"
   SANDBOX="$(config_get_optional agents.defaults.sandbox.mode)"
   if [[ "$SANDBOX" == "all" ]] || [[ "$SANDBOX" == "non-main" ]]; then
     pass "agents.defaults.sandbox.mode = $SANDBOX"
@@ -171,7 +171,7 @@ run_compliance() {
 
   # ── 4. DM policy (-15) ──────────────────────────────────────────────────
   echo ""
-  echo -e "${BLD}[4/7] DM policy${RST}"
+  echo -e "${BLD}[4/8] DM policy${RST}"
   DM_STATUS="$(enabled_channel_dm_policy_status)"
   DM_OK="$(printf '%s\n' "$DM_STATUS" | sed -n '1s/^OK://p')"
   DM_BAD="$(printf '%s\n' "$DM_STATUS" | sed -n '2s/^BAD://p')"
@@ -189,7 +189,7 @@ run_compliance() {
 
   # ── 5. Exec approval skill auto-allow (-10) ────────────────────────────
   echo ""
-  echo -e "${BLD}[5/7] Exec approval auto-allow${RST}"
+  echo -e "${BLD}[5/8] Exec approval auto-allow${RST}"
   AUTO_ALLOW_SKILLS="$(exec_auto_allow_skills)"
   if [[ "$AUTO_ALLOW_SKILLS" == "false" ]]; then
     pass "defaults.autoAllowSkills = false"
@@ -201,7 +201,7 @@ run_compliance() {
 
   # ── 6. Version (-20) ────────────────────────────────────────────────────
   echo ""
-  echo -e "${BLD}[6/7] Version check${RST}"
+  echo -e "${BLD}[6/8] Version check${RST}"
   CURRENT_VERSION=$(get_openclaw_version)
   if [[ "$CURRENT_VERSION" == "unknown" ]]; then
     deduct 20 "Could not determine OpenClaw version"
@@ -213,7 +213,7 @@ run_compliance() {
 
   # ── 7. Multi-user heuristic (-5) ────────────────────────────────────────
   echo ""
-  echo -e "${BLD}[7/7] Multi-user heuristic${RST}"
+  echo -e "${BLD}[7/8] Multi-user heuristic${RST}"
   MULTI_USER="$(config_get_optional security.trust_model.multi_user_heuristic)"
   if [[ "$MULTI_USER" == "true" ]]; then
     pass "security.trust_model.multi_user_heuristic = true"
@@ -227,6 +227,31 @@ run_compliance() {
       log_info "multi_user_heuristic not applicable (requires v2026.2.24+, running $CURRENT_VERSION)"
     fi
   fi
+
+  # ── 8. Watchdog status (-5) ──────────────────────────────────────────────
+  echo ""
+  echo -e "${BLD}[8/8] Watchdog status${RST}"
+  case "$(uname -s)" in
+    Linux)
+      if command -v systemctl &>/dev/null && systemctl --user is-active openclaw-watchdog.timer >/dev/null 2>&1; then
+        pass "openclaw-watchdog.timer active (5-min systemd user timer)"
+      elif command -v systemctl &>/dev/null && systemctl --user is-enabled openclaw-watchdog.timer >/dev/null 2>&1; then
+        deduct 5 "openclaw-watchdog.timer installed but not running — start with: systemctl --user start openclaw-watchdog.timer"
+      else
+        deduct 5 "openclaw-watchdog.timer not installed — install with: bash scripts/watchdog-install.sh"
+      fi
+      ;;
+    Darwin)
+      if launchctl list "ai.openclaw.watchdog" &>/dev/null 2>&1; then
+        pass "ai.openclaw.watchdog LaunchAgent loaded"
+      else
+        deduct 5 "ai.openclaw.watchdog LaunchAgent not loaded — install with: bash scripts/watchdog-install.sh"
+      fi
+      ;;
+    *)
+      log_info "Watchdog check not supported on this platform — verify manually"
+      ;;
+  esac
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -397,6 +422,12 @@ run_credentials() {
         ((perm_skipped++)) || true
         continue
         ;;
+      *.service|*.timer)
+        # systemd unit files are legitimately 644 (world-readable is required
+        # for systemctl to load them). Credential content is still scanned above.
+        ((perm_skipped++)) || true
+        continue
+        ;;
     esac
 
     local fperms
@@ -466,22 +497,18 @@ for root, dirs, files in os.walk(skills_dir):
     for f in files:
         path = os.path.join(root, f)
         relpath = os.path.relpath(path, skills_dir)
-        result = subprocess.run(
-            ['shasum', '-a', '256', path],
-            capture_output=True, text=True
-        )
-        if result.returncode == 0:
-            hashes[relpath] = result.stdout.strip().split()[0]
-        else:
-            # fallback to openssl
-            result2 = subprocess.run(
-                ['openssl', 'dgst', '-sha256', path],
-                capture_output=True, text=True
-            )
-            if result2.returncode == 0:
-                hashes[relpath] = result2.stdout.strip().split()[-1]
-            else:
-                hashes[relpath] = 'error'
+        # sha256sum (Ubuntu/Debian), shasum (macOS), openssl (last resort)
+        digest = None
+        for cmd, parse in [
+            (['sha256sum', path], lambda o: o.strip().split()[0]),
+            (['shasum', '-a', '256', path], lambda o: o.strip().split()[0]),
+            (['openssl', 'dgst', '-sha256', path], lambda o: o.strip().split()[-1]),
+        ]:
+            r = subprocess.run(cmd, capture_output=True, text=True)
+            if r.returncode == 0:
+                digest = parse(r.stdout)
+                break
+        hashes[relpath] = digest or 'error'
 print(json.dumps(hashes))
 " "$SKILLS_DIR" 2>/dev/null)
 
