@@ -211,6 +211,16 @@ file_perms() {
   fi
 }
 
+# File size in bytes (cross-platform)
+# Prefers Linux stat -c%s, falls back to macOS stat -f%z, then Python.
+file_size() {
+  local file="$1"
+  stat -c%s "$file" 2>/dev/null || \
+  stat -f%z "$file" 2>/dev/null || \
+  python3 -c "import os,sys; print(os.path.getsize(sys.argv[1]))" "$file" 2>/dev/null || \
+  echo 0
+}
+
 # Portable date N days ago (YYYY-MM-DD)
 date_days_ago() {
   local days="$1"

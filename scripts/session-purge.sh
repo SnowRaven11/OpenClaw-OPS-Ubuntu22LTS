@@ -168,7 +168,7 @@ PY
     TO_DELETE=("${BACKUPS[@]:$KEEP_BACKUPS}")
     BACKUP_BYTES=0
     for f in "${TO_DELETE[@]}"; do
-      sz=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo 0)
+      sz=$(file_size "$f")
       BACKUP_BYTES=$((BACKUP_BYTES + sz))
     done
     echo "  backups: ${#TO_DELETE[@]} old files ($(numfmt --to=iec --suffix=B $BACKUP_BYTES 2>/dev/null || echo ${BACKUP_BYTES}B))"
@@ -186,7 +186,7 @@ PY
     TRANSCRIPT_COUNT=0
     # All .jsonl.reset.* are safe to delete (archived)
     while IFS= read -r -d '' f; do
-      sz=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo 0)
+      sz=$(file_size "$f")
       TRANSCRIPT_BYTES=$((TRANSCRIPT_BYTES + sz))
       TRANSCRIPT_COUNT=$((TRANSCRIPT_COUNT + 1))
       $APPLY && rm "$f"
@@ -197,14 +197,14 @@ PY
       base="$(basename "$f")"
       uuid="${base%%.jsonl*}"
       if ! grep -qx "$uuid" "$UUID_FILE"; then
-        sz=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo 0)
+        sz=$(file_size "$f")
         TRANSCRIPT_BYTES=$((TRANSCRIPT_BYTES + sz))
         TRANSCRIPT_COUNT=$((TRANSCRIPT_COUNT + 1))
         $APPLY && rm "$f"
         # Also remove paired .codex-app-server.json
         paired="$SESSIONS_DIR/$base.codex-app-server.json"
         if [[ -f "$paired" ]]; then
-          psz=$(stat -f%z "$paired" 2>/dev/null || stat -c%s "$paired" 2>/dev/null || echo 0)
+          psz=$(file_size "$paired")
           TRANSCRIPT_BYTES=$((TRANSCRIPT_BYTES + psz))
           TRANSCRIPT_COUNT=$((TRANSCRIPT_COUNT + 1))
           $APPLY && rm "$paired"
