@@ -15,10 +15,13 @@ LAST_RUN_FILE="${OPENCLAW_SESSION_MONITOR_LAST_RUN:-$HOME/.openclaw/session-moni
 VERBOSE=0
 NO_ALERT=0
 FORCE=0
+AGENT_FILTER=""
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/session-monitor.sh [--verbose] [--no-alert] [--force]
+Usage: scripts/session-monitor.sh [--verbose] [--no-alert] [--force] [--agent <name>]
+
+  --agent <name>   Scan only the named agent's sessions instead of all agents
 USAGE
 }
 
@@ -293,6 +296,14 @@ while [[ $# -gt 0 ]]; do
       FORCE=1
       shift
       ;;
+    --agent)
+      AGENT_FILTER="${2:-}"
+      if [[ -z "$AGENT_FILTER" ]]; then
+        printf 'Error: --agent requires a name argument\n' >&2
+        exit 1
+      fi
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -304,6 +315,15 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# Scope the scan directory when --agent is set
+if [[ -n "$AGENT_FILTER" ]]; then
+  AGENTS_DIR="$AGENTS_DIR/$AGENT_FILTER"
+  if [[ ! -d "$AGENTS_DIR" ]]; then
+    printf 'Error: agent directory not found: %s\n' "$AGENTS_DIR" >&2
+    exit 1
+  fi
+fi
 
 mkdir -p "$STATE_DIR"
 
@@ -340,7 +360,11 @@ deduped_tmp="$(mktemp)"
 trap 'rm -f "$analysis_tmp" "$deduped_tmp"' EXIT
 
 if [[ ${#changed_files[@]} -gt 0 ]]; then
-  printf '%s\0' "${changed_files[@]}" | xargs -0 -n1 -P4 /bin/bash "$SCRIPT_PATH" --analyze-file >"$analysis_tmp"
+  # || true: a single unreadable/corrupt session file must not abort the whole scan.
+  # xargs -P4 exits non-zero if any subprocess does; under set -euo pipefail that
+  # kills the script before results are written.
+  printf '%s\0' "${changed_files[@]}" | \
+    xargs -0 -n1 -P4 /bin/bash "$SCRIPT_PATH" --analyze-file >"$analysis_tmp" || true
 fi
 
 python3 - "$analysis_tmp" "$deduped_tmp" <<'PY'
@@ -406,7 +430,10 @@ if [[ -s "$deduped_tmp" ]]; then
     incident_report "$dedupe_key" "$severity" "$title" "$evidence"
 
     if [[ "$severity" == "critical" && "$NO_ALERT" -eq 0 ]]; then
+      # In-app alert via openclaw
       openclaw system event --mode now --text "$title" >/dev/null 2>&1 || true
+      # OS-level alert: journald (always on Linux) + desktop popup when available
+      send_notification "OpenClaw Session Monitor" "$title"
     fi
   done <"$deduped_tmp"
 fi

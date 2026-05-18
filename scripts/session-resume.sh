@@ -6,26 +6,49 @@ source "$LIB_DIR/lib.sh"
 
 require_tools python3 || exit 1
 
+AGENTS_DIR="${OPENCLAW_AGENTS_DIR:-$HOME/.openclaw/agents}"
 SESSION_FILE="${1:-}"
 SUMMARY_ONLY=0
 TOOLS_ONLY=0
 LAST_COUNT=0
 RAW_OUTPUT=0
+AGENT_NAME=""
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/session-resume.sh <session-file> [--summary] [--tools-only] [--last N] [--raw]
+Usage: scripts/session-resume.sh <session-file|--agent <name>> [--summary] [--tools-only] [--last N] [--raw]
+
+  <session-file>    Path to a session .jsonl file
+  --agent <name>    Auto-find the most recent session for the named agent
+  --summary         Print only the compaction context and stats
+  --tools-only      Print only tool call / tool result activity
+  --last N          Print only the last N user/assistant messages
+  --raw             Skip secret redaction
 USAGE
 }
 
-if [[ -z "$SESSION_FILE" ]]; then
+# Allow --agent as the first argument in place of a file path
+if [[ "${SESSION_FILE:-}" == "--agent" ]]; then
+  AGENT_NAME="${2:-}"
+  SESSION_FILE=""
+  shift 2 || true
+elif [[ -z "$SESSION_FILE" ]]; then
   usage >&2
   exit 1
+else
+  shift || true
 fi
 
-shift || true
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --agent)
+      AGENT_NAME="${2:-}"
+      if [[ -z "$AGENT_NAME" ]]; then
+        printf 'Error: --agent requires a name argument\n' >&2
+        exit 1
+      fi
+      shift 2
+      ;;
     --summary)
       SUMMARY_ONLY=1
       shift
@@ -53,6 +76,46 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# Auto-discover latest session for --agent <name>
+if [[ -n "$AGENT_NAME" ]]; then
+  AGENT_SESSIONS_DIR="$AGENTS_DIR/$AGENT_NAME/sessions"
+  if [[ ! -d "$AGENT_SESSIONS_DIR" ]]; then
+    printf 'Error: sessions directory not found: %s\n' "$AGENT_SESSIONS_DIR" >&2
+    exit 1
+  fi
+  # Python: find the most recently modified .jsonl — portable across Linux and macOS
+  SESSION_FILE="$(python3 - "$AGENT_SESSIONS_DIR" <<'PY'
+import os
+import sys
+
+sessions_dir = sys.argv[1]
+best = None
+best_mtime = -1
+try:
+    for entry in os.scandir(sessions_dir):
+        if entry.name.endswith(".jsonl") and entry.is_file(follow_symlinks=False):
+            mtime = entry.stat().st_mtime
+            if mtime > best_mtime:
+                best_mtime = mtime
+                best = entry.path
+except Exception:
+    pass
+if best:
+    print(best)
+PY
+)"
+  if [[ -z "$SESSION_FILE" ]]; then
+    printf 'No session files found for agent: %s\n' "$AGENT_NAME" >&2
+    exit 1
+  fi
+  printf 'Using session: %s\n' "$SESSION_FILE" >&2
+fi
+
+if [[ -z "$SESSION_FILE" ]]; then
+  usage >&2
+  exit 1
+fi
 
 if [[ ! -f "$SESSION_FILE" ]]; then
   printf 'Session file not found: %s\n' "$SESSION_FILE" >&2
@@ -230,8 +293,22 @@ print("\n".join(lines))
 PY
 )"
 
-if [[ "$RAW_OUTPUT" -eq 1 ]]; then
-  printf '%s\n' "$result"
-else
-  printf '%s\n' "$result" | sanitize_sensitive
+# Sanitize secrets unless --raw was passed
+if [[ "$RAW_OUTPUT" -eq 0 ]]; then
+  result="$(printf '%s\n' "$result" | sanitize_sensitive)"
 fi
+
+# Auto-pager: pipe through $PAGER (or less -R) when stdout is a terminal.
+# Skipped when output is redirected or piped — plain text is fine there.
+if [[ -t 1 && "$RAW_OUTPUT" -eq 0 ]]; then
+  pager="${PAGER:-}"
+  if [[ -z "$pager" ]] && command -v less &>/dev/null; then
+    pager="less -R"
+  fi
+  if [[ -n "$pager" ]]; then
+    printf '%s\n' "$result" | $pager
+    exit 0
+  fi
+fi
+
+printf '%s\n' "$result"
