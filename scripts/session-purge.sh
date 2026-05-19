@@ -195,7 +195,7 @@ PY
     # Orphaned .jsonl: uuid not in active set
     while IFS= read -r -d '' f; do
       base="$(basename "$f")"
-      uuid="${base%%.jsonl*}"
+      uuid="${base%%.*}"
       if ! grep -qx "$uuid" "$UUID_FILE"; then
         sz=$(file_size "$f")
         TRANSCRIPT_BYTES=$((TRANSCRIPT_BYTES + sz))

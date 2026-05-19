@@ -300,10 +300,10 @@ if [[ -d "$AGENTS_DIR" ]]; then
         log_fixed "Archived large session for $agent: $(basename "$large_file")" || \
         log_broken "Could not archive: $large_file"
       STUCK_COUNT=$((STUCK_COUNT + 1))
-    done < <(find "$sessions_dir" -name "*.json" -size +10M 2>/dev/null)
+    done < <(find "$sessions_dir" -name "*.jsonl" -size +10M 2>/dev/null)
 
     # Check for rapid-fire loop (same content 10+ times)
-    for f in "$sessions_dir"/*.json; do
+    while IFS= read -r -d '' f; do
       [[ -f "$f" ]] || continue
       LOOP=$(python3 -c "
 import json, sys
@@ -338,7 +338,7 @@ print('reset')
           STUCK_COUNT=$((STUCK_COUNT + 1))
         fi
       fi
-    done
+    done < <(find "$sessions_dir" -maxdepth 1 -name "*.jsonl" ! -name "*.trajectory.jsonl" -print0 2>/dev/null)
   done
   if [[ "$STUCK_COUNT" -eq 0 ]]; then
     log_info "Sessions OK"

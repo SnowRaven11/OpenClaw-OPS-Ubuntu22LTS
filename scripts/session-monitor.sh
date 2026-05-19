@@ -331,7 +331,7 @@ all_files=()
 while IFS= read -r file; do
   [[ -n "$file" ]] || continue
   all_files+=("$file")
-done < <(find "$AGENTS_DIR" -type f -name '*.jsonl' 2>/dev/null | sort)
+done < <(find "$AGENTS_DIR" -type f -name '*.jsonl' ! -name '*.trajectory.jsonl' 2>/dev/null | sort)
 last_run=0
 if [[ "$FORCE" -eq 0 && -f "$LAST_RUN_FILE" ]]; then
   last_run="$(file_mtime "$LAST_RUN_FILE")"

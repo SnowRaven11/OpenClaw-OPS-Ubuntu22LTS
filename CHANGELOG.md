@@ -6,6 +6,15 @@ Notable changes to openclaw-ops. Format follows [Keep a Changelog](https://keepa
 
 ---
 
+## [v1.2.3] — 2026-05-19
+
+### Fixed
+- `scripts/heal.sh` — step `[5]` session file globs used `*.json` instead of `*.jsonl`; real session transcripts are `*.jsonl` and `*.trajectory.jsonl`, so the 10MB large-file archival and rapid-fire loop detection never fired against real sessions. Large-file find changed to `*.jsonl`; loop check now uses `find -name "*.jsonl" ! -name "*.trajectory.jsonl"` (trajectory files have a different structure incompatible with the JSON loop detector)
+- `scripts/session-purge.sh` — orphan UUID extraction used `${base%%.jsonl*}` which extracted `uuid.trajectory` (not `uuid`) from `uuid.trajectory.jsonl` files; classified as orphans and deleted with `--apply` even when the parent session was still active. Fixed to `${base%%.*}`
+- `scripts/session-monitor.sh` — `find '*.jsonl'` matched all 299 `.trajectory.jsonl` files across agents; trajectory files are Codex rollout logs with a different structure and were silently skipped after wasted I/O. Added `! -name '*.trajectory.jsonl'` exclusion
+
+---
+
 ## [v1.2.1] — 2026-05-19
 
 ### Fixed
