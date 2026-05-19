@@ -6,6 +6,38 @@ Notable changes to openclaw-ops. Format follows [Keep a Changelog](https://keepa
 
 ---
 
+## [v1.0.5] — 2026-05-19
+
+### Added
+- `.github/workflows/ci.yml` — GitHub Actions workflow running on `ubuntu-22.04` on every push and PR to main; steps: install `shellcheck`, `ripgrep`, `python3` → `shellcheck --severity=warning scripts/*.sh` → `bash tests/run.sh`
+- `CONTRIBUTING.md` PR checklist: added `shellcheck --severity=warning scripts/*.sh` as a required local check before opening a PR
+
+### Fixed
+- `scripts/workspace-auto-commit.sh`, `scripts/workspace-git-audit.sh` (SC2088) — `"~/"*` in `expand_path()` case patterns quoted so tilde never expanded; changed to `~/*` which is equivalent and correct
+- `scripts/watchdog.sh` — `check_agent_layer_health()` still had the dead BSD `date -v-5M` (macOS-only) branch with a silent fallback to GNU `date -d`; removed the dead branch, GNU form only
+- `scripts/security-scan.sh` — removed two dead `case` patterns from the credential-scan skip list: `*/codex-home/sessions/*` was already covered by `*/sessions/*`, and `*/scripts/**/*.bak*` was already covered by `*/scripts/*.bak*` (in bash `case` patterns `*` crosses directory boundaries)
+- `README.md`, `scripts/security-scan.sh`, `scripts/session-resume.sh`, `.github/ISSUE_TEMPLATE/bug-report.md` — final macOS/platform remnants missed in earlier passes
+
+### Removed
+- `scripts/check-update.sh` — `OPENCLAW_JSON` variable defined but never referenced
+- `scripts/codex-perf-check.sh` — `VALID_LEVELS` array superseded by `WEAK_LEVELS`; `CODEX_STATUS` assignment superseded by two separate extraction variables used by the actual logic
+
+---
+
+## [v1.0.4] — 2026-05-19
+
+### Changed
+- `CONTRIBUTING.md` — replaced "platform parity (Linux, BSD)" contribution area with "Ubuntu 22 LTS operational improvements"; removed dead "Linux / systemd parity for LaunchAgent-only flows" entry; simplified failure pattern verification snippet to GNU `date -d '24 hours ago'` only
+
+---
+
+## [v1.0.3] — 2026-05-19
+
+### Changed
+- `CHANGELOG.md` — added full versioned entries for v1.0.1 and v1.0.2; preserved earlier upstream history under Pre-v1.0.1
+
+---
+
 ## [v1.0.2] — 2026-05-19
 
 ### Changed
