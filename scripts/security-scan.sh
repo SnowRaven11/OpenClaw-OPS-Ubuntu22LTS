@@ -487,11 +487,9 @@ for root, dirs, files in os.walk(skills_dir):
     for f in files:
         path = os.path.join(root, f)
         relpath = os.path.relpath(path, skills_dir)
-        # sha256sum (Ubuntu/Debian), shasum (macOS), openssl (last resort)
         digest = None
         for cmd, parse in [
             (['sha256sum', path], lambda o: o.strip().split()[0]),
-            (['shasum', '-a', '256', path], lambda o: o.strip().split()[0]),
             (['openssl', 'dgst', '-sha256', path], lambda o: o.strip().split()[-1]),
         ]:
             r = subprocess.run(cmd, capture_output=True, text=True)

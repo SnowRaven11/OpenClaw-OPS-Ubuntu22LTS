@@ -236,11 +236,7 @@ check_agent_layer_health() {
   [[ -r "$log" ]] || return 0
 
   local cutoff
-  if cutoff="$(date -v-5M '+%Y-%m-%dT%H:%M' 2>/dev/null)"; then
-    :
-  else
-    cutoff="$(date -d '5 minutes ago' '+%Y-%m-%dT%H:%M' 2>/dev/null)" || return 0
-  fi
+  cutoff="$(date -d '5 minutes ago' '+%Y-%m-%dT%H:%M' 2>/dev/null)" || return 0
 
   # Dedupe by timestamp-second: one real failure emits 4-5 log lines across
   # lane=main, lane=session:..., model-fallback/decision, embedded-agent loggers.

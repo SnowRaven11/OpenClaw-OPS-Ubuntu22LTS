@@ -16,8 +16,8 @@ Tested against OpenClaw `2026.5.4`.
 | `scripts/heal.sh` | One-shot auto-fix for the most common gateway issues |
 | `scripts/post-update.sh` | Explicit post-update orchestrator: check-update, heal, workspace reconcile, security scan, final health check, policy-guard sentinel trigger |
 | `scripts/watchdog.sh` | Runs every 5 min, restarts gateway if down, escalates after 3 failures |
-| `scripts/watchdog-install.sh` | Installs the watchdog — systemd user timer on Linux, LaunchAgent on macOS |
-| `scripts/watchdog-uninstall.sh` | Removes the watchdog (detects platform automatically) |
+| `scripts/watchdog-install.sh` | Installs the watchdog as a systemd user timer; cron fallback for non-systemd |
+| `scripts/watchdog-uninstall.sh` | Removes the watchdog (systemd units and/or cron entry) |
 | `scripts/linux-prereqs.sh` | Install Ubuntu 22 dependencies and enable user lingering |
 | `scripts/check-update.sh` | Detects version changes, explains broken config, auto-fix with `--fix` |
 | `scripts/health-check.sh` | Declarative URL/process health checks; auto-generates targets file on first run |
@@ -132,19 +132,14 @@ bash scripts/remediation-board.sh list
 ## Platform
 
 **Target: Ubuntu 22 LTS.** Cron fallback available for non-systemd Linux. Other platforms are not supported.
-| Windows WSL2 | ✓ | ✓ (via cron) | ✗ |
 
 ## Viewing logs
 
-**macOS:**
-```bash
-tail -f ~/.openclaw/logs/gateway.err.log
-tail -f ~/.openclaw/logs/watchdog.log
-```
-
-**Linux (systemd):**
 ```bash
 journalctl --user -u openclaw-gateway -f
+journalctl --user -u openclaw-watchdog.service -f
+tail -f ~/.openclaw/logs/gateway.err.log
+tail -f ~/.openclaw/logs/watchdog.log
 ```
 
 ## Notes

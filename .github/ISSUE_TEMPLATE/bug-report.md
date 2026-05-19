@@ -29,7 +29,7 @@ bash scripts/<script>.sh [args]
 
 ## Environment
 
-- OS: (macOS X.Y / Linux distro+version)
+- OS: Ubuntu 22 LTS (or specify Linux distro+version)
 - OpenClaw version: `openclaw --version`
 - openclaw-ops commit: `git -C <path-to-openclaw-ops> rev-parse HEAD`
 - Shell: `echo $SHELL`

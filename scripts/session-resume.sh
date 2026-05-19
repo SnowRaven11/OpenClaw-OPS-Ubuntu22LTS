@@ -84,7 +84,7 @@ if [[ -n "$AGENT_NAME" ]]; then
     printf 'Error: sessions directory not found: %s\n' "$AGENT_SESSIONS_DIR" >&2
     exit 1
   fi
-  # Python: find the most recently modified .jsonl — portable across Linux and macOS
+  # Python: find the most recently modified .jsonl via os.scandir()
   SESSION_FILE="$(python3 - "$AGENT_SESSIONS_DIR" <<'PY'
 import os
 import sys
