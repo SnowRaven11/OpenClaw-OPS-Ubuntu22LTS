@@ -20,10 +20,8 @@ openclaw status --deep
 # 5. Auto-fix
 openclaw doctor --fix
 
-# 6. Live logs (Linux)
+# 6. Live logs
 journalctl --user -u openclaw-gateway -f
-# 6. Live logs (macOS)
-tail -f ~/.openclaw/logs/gateway.err.log
 ```
 
 ## Critical: Version Check
@@ -129,8 +127,7 @@ If that returns "alive", auth is fine and the failure is the gateway's spawn-and
 ```bash
 # Count distinct failure timestamps in the last hour. Each real failure
 # emits 4-5 log lines across different loggers, so dedupe before counting.
-# date -v-1H is BSD/macOS; date -d '1 hour ago' is GNU/Linux.
-cutoff="$( (date -u -v-1H '+%Y-%m-%dT%H' 2>/dev/null) || date -u -d '1 hour ago' '+%Y-%m-%dT%H' )"
+cutoff="$(date -u -d '1 hour ago' '+%Y-%m-%dT%H')"
 awk -v cut="$cutoff" '
   $1 >= cut && /codex app-server client is closed/ { seen[$1]=1 }
   END { print length(seen) }
@@ -272,29 +269,6 @@ openclaw config get channels.telegram
 ```bash
 # Verify token is set
 openclaw config set channels.telegram.botToken "123:abc..."
-openclaw gateway restart
-```
-
-#### iMessage: Not Working
-**Symptoms:** iMessage channel not receiving messages
-
-**Causes:**
-- Not on macOS (iMessage is macOS only)
-- Full Disk Access not granted
-- Messages app not signed in
-
-**Fix:**
-```bash
-# 1. Verify macOS
-uname -s  # Must be "Darwin"
-
-# 2. Grant Full Disk Access
-# System Settings → Privacy & Security → Full Disk Access → Add Terminal
-
-# 3. Verify Messages app is signed in and iMessage is active
-
-# 4. Enable and restart
-openclaw config set channels.imessage.enabled true
 openclaw gateway restart
 ```
 
@@ -685,36 +659,6 @@ journalctl --user -u openclaw-gateway -f
 - Port conflict: Check other processes
 - Missing dependencies: Reinstall
 - `auth: "none"` in config after upgrade (see above)
-
-### WSL2-Specific Issues
-
-#### Commands Not Found
-**Cause:** nvm/node not in path
-
-**Fix:**
-```bash
-# Always source nvm first
-source ~/.nvm/nvm.sh
-openclaw status
-```
-
-#### systemd Not Available
-**Check:**
-```bash
-ps -p 1 -o comm=  # Should show "systemd"
-```
-
-**Fix:** Enable systemd in WSL
-```bash
-sudo nano /etc/wsl.conf
-# Add:
-# [boot]
-# systemd=true
-
-# Then in PowerShell:
-wsl --shutdown
-wsl -d Ubuntu
-```
 
 ## Log Locations
 

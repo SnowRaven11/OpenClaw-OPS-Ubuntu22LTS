@@ -47,9 +47,9 @@ When a new failure mode appears in `~/.openclaw/logs/gateway.err.log`, the tempt
 
 This keeps all agent-layer detection in one place that an operator can reason about. Use the **"Report a new failure pattern"** issue template in `.github/ISSUE_TEMPLATE/new-failure-pattern.md` to capture the symptoms, log signature, and recovery for any new pattern.
 
-## Linux (Ubuntu 22 LTS) service architecture
+## Service architecture
 
-On Ubuntu 22, openclaw-ops runs two systemd user units installed by `watchdog-install.sh`:
+openclaw-ops runs two systemd user units installed by `watchdog-install.sh`:
 
 ```
 ~/.config/systemd/user/
@@ -64,7 +64,7 @@ On Ubuntu 22, openclaw-ops runs two systemd user units installed by `watchdog-in
 
 **Lingering** — for headless/server installs, `loginctl enable-linger $USER` is required so user units start at boot without a login session. `watchdog-install.sh` and `linux-prereqs.sh` both set this automatically.
 
-### Log paths on Linux
+### Log paths
 
 | Source | Command |
 |--------|---------|
@@ -74,11 +74,11 @@ On Ubuntu 22, openclaw-ops runs two systemd user units installed by `watchdog-in
 | Watchdog journal | `journalctl --user -u openclaw-watchdog.service -f` |
 | All openclaw units | `journalctl --user -t openclaw-watchdog -f` |
 
-### Restart command on Linux
+### Restart command
 
 `watchdog.sh` calls `systemctl --user restart openclaw-gateway.service` when the unit exists, so the service manager tracks the new PID. It falls back to `openclaw gateway restart` when the unit is absent (cron fallback installs).
 
-### Notifications on Linux
+### Notifications
 
 `send_notification()` in `lib.sh` writes a `warning`-priority entry to journald via `systemd-cat` on every alert. If `DISPLAY` or `WAYLAND_DISPLAY` is set and `notify-send` is available, a desktop popup is also sent. On headless servers, journal entries are the primary alert surface — integrate with a log-forwarding tool (Loki, Elastic, etc.) to get paged on escalations.
 

@@ -254,52 +254,6 @@ Discord supports interactive UI components including buttons, selects, and modal
 
 ---
 
-## iMessage (macOS Only)
-
-### Prerequisites
-- macOS with iMessage configured
-- Messages app signed into your Apple ID
-- Full Disk Access granted to the OpenClaw process (or Terminal)
-
-### Setup Steps
-
-1. **Grant Full Disk Access**
-   - System Settings → Privacy & Security → Full Disk Access
-   - Add Terminal (or the app running OpenClaw)
-   - This is required for OpenClaw to read the iMessage database
-
-2. **Enable the Channel**
-```bash
-openclaw config set channels.imessage.enabled true
-openclaw config set channels.imessage.dmPolicy pairing
-openclaw gateway restart
-```
-
-3. **Test**
-   - Send an iMessage to your own number or Apple ID from another device
-   - Approve pairing: `openclaw pairing approve imessage <code>`
-
-### Configuration
-```json
-{
-  "channels": {
-    "imessage": {
-      "enabled": true,
-      "dmPolicy": "pairing",
-      "allowFrom": ["+15551234567", "user@icloud.com"]
-    }
-  }
-}
-```
-
-### Limitations
-- macOS only (iMessage is not available on Linux or WSL2)
-- Requires Full Disk Access for the chat.db database
-- Apple ID changes may require re-configuration
-- Group chats have limited support
-
----
-
 ## Microsoft Teams (Plugin Required)
 
 As of v2026.1.15, Microsoft Teams is a **plugin-only** channel via `@openclaw/msteams`.
