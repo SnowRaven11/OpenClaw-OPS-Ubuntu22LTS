@@ -231,27 +231,13 @@ run_compliance() {
   # ── 8. Watchdog status (-5) ──────────────────────────────────────────────
   echo ""
   echo -e "${BLD}[8/8] Watchdog status${RST}"
-  case "$(uname -s)" in
-    Linux)
-      if command -v systemctl &>/dev/null && systemctl --user is-active openclaw-watchdog.timer >/dev/null 2>&1; then
-        pass "openclaw-watchdog.timer active (5-min systemd user timer)"
-      elif command -v systemctl &>/dev/null && systemctl --user is-enabled openclaw-watchdog.timer >/dev/null 2>&1; then
-        deduct 5 "openclaw-watchdog.timer installed but not running — start with: systemctl --user start openclaw-watchdog.timer"
-      else
-        deduct 5 "openclaw-watchdog.timer not installed — install with: bash scripts/watchdog-install.sh"
-      fi
-      ;;
-    Darwin)
-      if launchctl list "ai.openclaw.watchdog" &>/dev/null 2>&1; then
-        pass "ai.openclaw.watchdog LaunchAgent loaded"
-      else
-        deduct 5 "ai.openclaw.watchdog LaunchAgent not loaded — install with: bash scripts/watchdog-install.sh"
-      fi
-      ;;
-    *)
-      log_info "Watchdog check not supported on this platform — verify manually"
-      ;;
-  esac
+  if systemctl --user is-active openclaw-watchdog.timer >/dev/null 2>&1; then
+    pass "openclaw-watchdog.timer active (5-min systemd user timer)"
+  elif systemctl --user is-enabled openclaw-watchdog.timer >/dev/null 2>&1; then
+    deduct 5 "openclaw-watchdog.timer installed but not running — start with: systemctl --user start openclaw-watchdog.timer"
+  else
+    deduct 5 "openclaw-watchdog.timer not installed — install with: bash scripts/watchdog-install.sh"
+  fi
 }
 
 # ══════════════════════════════════════════════════════════════════════════════

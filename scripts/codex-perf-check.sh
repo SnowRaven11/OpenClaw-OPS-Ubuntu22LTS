@@ -272,7 +272,7 @@ fi
 if [[ ${#FIXED[@]} -gt 0 ]]; then
   echo ""
   echo -e "${CYN}Restarting gateway to apply changes...${RST}"
-  if [[ "$(uname -s)" == "Linux" ]] && is_systemd_unit_active "openclaw-gateway.service" 2>/dev/null; then
+  if is_systemd_unit_active "openclaw-gateway.service" 2>/dev/null; then
     systemctl --user restart openclaw-gateway.service 2>/dev/null && log_ok "Gateway restarted" || log_error "Gateway restart failed"
   else
     openclaw gateway restart 2>/dev/null && log_ok "Gateway restarted" || log_error "Gateway restart failed"

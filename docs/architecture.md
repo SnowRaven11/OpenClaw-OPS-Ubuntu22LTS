@@ -4,7 +4,7 @@ This doc explains the design decisions behind openclaw-ops that aren't obvious f
 
 ## Single-owner restart policy
 
-**Only one process is authorized to restart the gateway.** That process is `watchdog.sh` (installed as a systemd user timer on Linux, or a LaunchAgent on macOS). All other monitoring scripts in this repo — and any monitoring scripts you add — should **alert and log only**, never call `openclaw gateway restart`.
+**Only one process is authorized to restart the gateway.** That process is `watchdog.sh`, installed as a systemd user timer (cron fallback on non-systemd). All other monitoring scripts in this repo — and any monitoring scripts you add — should **alert and log only**, never call `openclaw gateway restart`.
 
 ### Why this matters
 

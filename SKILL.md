@@ -27,10 +27,10 @@ If the user has a local development checkout of this repo, prefer that over the 
 |--------|-------------|
 | `heal.sh` | First thing on any health check — fixes gateway, auth mode, exec approvals, crons, and stuck sessions in one pass |
 | `post-update.sh` | Run after `openclaw update` — orchestrates check-update, heal, workspace reconcile, security scan, and final health check in sequence |
-| `watchdog.sh` | Continuous monitoring; run every 5 min via systemd timer (Linux) or LaunchAgent (macOS). HTTP health check → auto-restart → escalation after 3 failures |
-| `watchdog-install.sh` | Install the watchdog — systemd user timer on Linux, LaunchAgent on macOS. Enables user lingering on Linux for boot-time startup |
-| `watchdog-uninstall.sh` | Remove the watchdog (detects platform automatically) |
-| `linux-prereqs.sh` | Ubuntu 22 LTS only — install system dependencies and enable user lingering |
+| `watchdog.sh` | Continuous monitoring; runs every 5 min via systemd user timer. HTTP health check → auto-restart → journald escalation after 3 failures |
+| `watchdog-install.sh` | Install the watchdog as a systemd user timer; enables user lingering for headless boot-time startup. Cron fallback for non-systemd environments |
+| `watchdog-uninstall.sh` | Remove the watchdog (systemd units and/or cron entry) |
+| `linux-prereqs.sh` | Install system dependencies and enable user lingering (run once on a fresh machine) |
 | `check-update.sh` | After a version change — detects breaking config changes, explains them; `--fix` to auto-repair |
 | `health-check.sh` | URL/process health checks for gateway-adjacent services; copy `templates/health-targets.conf.example` first |
 | `session-monitor.sh` | Agent is alive but misbehaving — retry loops, hangs, auth loops, noisy failures |
@@ -58,7 +58,7 @@ If the user has a local development checkout of this repo, prefer that over the 
 # One-pass heal:
 bash scripts/heal.sh
 
-# Install always-on watchdog (macOS):
+# Install always-on watchdog:
 bash scripts/watchdog-install.sh
 
 # Check GPT-5.x agent performance settings:
@@ -170,7 +170,7 @@ Interpretation rules:
 
 - If `heal.sh` says `Gateway failed to start`, immediately re-check with `openclaw gateway status` and an HTTP probe. On Linux, also check `systemctl --user status openclaw-gateway.service` — systemd may have restarted it after `heal.sh` probed.
 - If `daily-digest.sh` reports auth errors for Codex-backed agents, verify with the Codex CLI command above before calling it auth. Add `</dev/null` to avoid `codex exec` waiting forever on stdin (`Reading additional input from stdin...`). If direct Codex still times out but `openclaw agent --agent <name> --session-id health-probe-$(date +%s) --message "Health probe. Reply exactly: OPENCLAW_ALIVE" --thinking low --timeout 240 --json` succeeds, treat the agent runtime as healthy and the direct CLI probe as a separate Codex CLI/harness issue. `codex app-server client is closed` is a bundled Codex subprocess failure, not an OpenClaw auth failure.
-- If `openclaw gateway status` reports an entrypoint mismatch on Linux, check `systemctl --user cat openclaw-gateway.service` to see the exact binary the unit uses, then run probes through that path before trusting CLI-only failures.
+- If `openclaw gateway status` reports an entrypoint mismatch, check `systemctl --user cat openclaw-gateway.service` to see the exact binary the unit uses, then run probes through that path before trusting CLI-only failures.
 - If `openclaw channels status --probe` says `Gateway event loop degraded` but every channel still reports `works` and the watchdog stays HTTP 200, treat it as a load signal, not an outage. Check `openclaw status --deep`, active sessions, and recent `liveness warning` lines before restarting.
 - If `openclaw doctor` warns that `openai-codex/*` refs resolve with runtime `pi`, do not automatically “fix” it. This can be intentional for Codex OAuth/subscription auth through PI. Use `bash scripts/codex-perf-check.sh`; only run `--fix` if the user wants native Codex app-server and accepts the model/runtime migration.
 - A green HTTP/WebSocket gateway check is not enough. Also check channels, stuck sessions, watchdog events, Codex backend health, and memory search readiness.
@@ -178,61 +178,50 @@ Interpretation rules:
 
 ### Duplicate install cleanup
 
-If CLI probes and the LaunchAgent disagree, check whether multiple OpenClaw installs exist:
+If CLI probes and the systemd service disagree, check whether multiple OpenClaw installs exist:
 
 ```bash
 type -a openclaw
-ls -l "$(command -v openclaw)" /opt/homebrew/bin/openclaw /usr/local/bin/openclaw 2>/dev/null || true
-npm list -g --prefix ~/.npm-global openclaw --depth=0
-npm list -g --prefix /opt/homebrew openclaw --depth=0
-launchctl print gui/$(id -u)/ai.openclaw.gateway | sed -n '1,80p'
+npm list -g openclaw --depth=0 2>/dev/null || true
+systemctl --user cat openclaw-gateway.service | grep ExecStart
 ```
 
-Keep the install used by the gateway LaunchAgent unless there is a specific reason to migrate it. Remove stale npm-global duplicates only after confirming launchd is not using them:
+Keep the install used by the gateway service unit. Remove stale npm-global duplicates only after confirming systemd is not using them:
 
 ```bash
-npm uninstall -g --prefix ~/.npm-global openclaw
+npm uninstall -g openclaw
 hash -r
 type -a openclaw
 openclaw gateway status
+systemctl --user status openclaw-gateway.service
 ```
 
-If `/usr/local/bin/openclaw` is a root-owned symlink to the removed install, remove it with an interactive sudo shell or leave it documented if it is not on the active PATH. Do not delete unrelated globally installed npm packages.
+### Systemd unit quarantine reset
 
-### LaunchAgent quarantine reset
-
-Use this when OpenClaw keeps breaking after normal heal/restart cycles and there are custom LaunchAgents in the restart path. The goal is a reversible clean room: leave the main gateway LaunchAgent loaded, quarantine everything custom, and verify before adding anything back.
+Use this when OpenClaw keeps breaking after normal heal/restart cycles and there are custom user units in the restart path. Disable everything custom, verify the gateway unit is healthy, then re-enable one at a time.
 
 ```bash
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-quarantine="$HOME/.openclaw/quarantine/launchagents/$stamp"
+quarantine="$HOME/.openclaw/quarantine/systemd/$stamp"
 mkdir -p "$quarantine"
-
-launchctl list | rg 'openclaw|paperclip-openclaw|skills-index' || true
-ls "$HOME/Library/LaunchAgents"/*openclaw*.plist "$HOME/Library/LaunchAgents"/*paperclip-openclaw*.plist 2>/dev/null || true
+systemctl --user list-units --all | rg 'openclaw' || true
 ```
 
-Move only non-gateway/custom jobs after inspecting the list. Keep `ai.openclaw.gateway.plist` in place unless you are intentionally stopping the gateway too.
+Disable and move custom units — keep `openclaw-gateway.service` running:
 
 ```bash
-for plist in \
-  "$HOME/Library/LaunchAgents/ai.openclaw.watchdog.plist" \
-  "$HOME/Library/LaunchAgents/ai.openclaw.gateway-watchdog.plist" \
-  "$HOME/Library/LaunchAgents/co.bestself.openclaw.skills-index.plist" \
-  "$HOME/Library/LaunchAgents/com.bestself.paperclip-openclaw-ops.plist" \
-  "$HOME/Library/LaunchAgents"/com.*.openclaw-*.plist
-do
-  [[ -e "$plist" ]] || continue
-  label="$(/usr/libexec/PlistBuddy -c 'Print :Label' "$plist" 2>/dev/null || basename "$plist" .plist)"
-  launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
-  mv "$plist" "$quarantine/"
+for unit in openclaw-watchdog.timer openclaw-watchdog.service; do
+  systemctl --user stop "$unit"   2>/dev/null || true
+  systemctl --user disable "$unit" 2>/dev/null || true
+  unit_path="$HOME/.config/systemd/user/$unit"
+  [[ -f "$unit_path" ]] && mv "$unit_path" "$quarantine/"
 done
-
-launchctl list | rg 'openclaw|paperclip-openclaw|skills-index' || true
+systemctl --user daemon-reload
+systemctl --user list-units --all | rg 'openclaw' || true
 openclaw gateway status
 ```
 
-After quarantine, verify `launchctl list` shows only `ai.openclaw.gateway` for OpenClaw unless you deliberately reloaded another job. Restore one quarantined plist at a time only after the gateway and channels are stable.
+Restore one quarantined unit at a time after the gateway and channels are stable.
 
 If the failure was `codex app-server client is closed`, do not treat the tapback/ack as proof the agent is working. Check the session transcript and queue state:
 
@@ -367,7 +356,7 @@ openclaw security audit --deep
 Run `security-scan.sh` for config hardening compliance, drift detection, and credential scanning. Run `skill-audit.sh` before installing any third-party skill.
 
 Security-scan caveats:
-- The scanner intentionally scans config-like files for leaked secrets, but it skips permission hardening for installed plugin/runtime package contents because package manifests and fixtures are normally 644. Treat permission findings under `workspace/`, `credentials/`, auth-state, or systemd unit files (Linux) / LaunchAgent plists (macOS) as higher signal than plugin source files.
+- The scanner intentionally scans config-like files for leaked secrets, but it skips permission hardening for installed plugin/runtime package contents because package manifests and fixtures are normally 644. Treat permission findings under `workspace/`, `credentials/`, auth-state, or systemd unit files as higher signal than plugin source files.
 - Prefer `OPENCLAW_SECURITY_SCAN_MAX_FINDINGS=20 bash scripts/security-scan.sh` for readable output.
 - Use `--include-sessions` only for a deep forensic pass; default mode skips bulky logs, session transcripts, runtime deps, and canvas artifacts to avoid slow/noisy scans.
 
@@ -387,7 +376,7 @@ See [security-guide.md](docs/security-guide.md) for full details.
 
 ## Installation
 
-**Requirements:** Node.js v22+, macOS or Linux (Windows: WSL2/Ubuntu)
+**Requirements:** Node.js v22+, Ubuntu 22 LTS
 
 ```bash
 curl -fsSL https://openclaw.ai/install.sh | bash

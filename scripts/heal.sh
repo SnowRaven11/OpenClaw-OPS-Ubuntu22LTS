@@ -28,12 +28,10 @@ gateway_running() {
     pgrep -f 'openclaw.*gateway' >/dev/null 2>&1
 }
 
-# On Linux, prefer systemctl when the gateway is a managed unit so the service
-# manager tracks the new PID. Falls back to the openclaw CLI otherwise.
+# Prefer systemctl when the gateway is a managed unit so the service manager
+# tracks the new PID. Falls back to the openclaw CLI otherwise (cron installs).
 gateway_do_start() {
-  if [[ "$(uname -s)" == "Linux" ]] && \
-     command -v systemctl &>/dev/null && \
-     systemctl --user list-unit-files openclaw-gateway.service 2>/dev/null | grep -q openclaw-gateway; then
+  if systemctl --user list-unit-files openclaw-gateway.service 2>/dev/null | grep -q openclaw-gateway; then
     systemctl --user start openclaw-gateway.service 2>/dev/null
   else
     openclaw gateway start 2>/dev/null
@@ -41,9 +39,7 @@ gateway_do_start() {
 }
 
 gateway_do_restart() {
-  if [[ "$(uname -s)" == "Linux" ]] && \
-     command -v systemctl &>/dev/null && \
-     systemctl --user is-active openclaw-gateway.service >/dev/null 2>&1; then
+  if is_systemd_unit_active "openclaw-gateway.service" 2>/dev/null; then
     systemctl --user restart openclaw-gateway.service 2>/dev/null
   else
     openclaw gateway restart 2>/dev/null

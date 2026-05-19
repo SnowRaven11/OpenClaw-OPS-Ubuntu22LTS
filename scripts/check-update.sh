@@ -33,10 +33,9 @@ bad()   { echo -e "${RED}[✗]${RST} $1"; }
 info()  { echo -e "${CYN}[~]${RST} $1"; }
 fixed() { echo -e "${GRN}[FIXED]${RST} $1"; }
 
-# Print the right gateway restart command for this platform.
-# On Linux, prefer systemctl when the gateway is a managed unit.
+# Print the gateway restart command — systemctl when the unit is managed, else openclaw CLI.
 restart_hint() {
-  if [[ "$(uname -s)" == "Linux" ]] && is_systemd_unit_active "openclaw-gateway.service" 2>/dev/null; then
+  if is_systemd_unit_active "openclaw-gateway.service" 2>/dev/null; then
     echo "  systemctl --user restart openclaw-gateway.service"
   else
     echo "  openclaw gateway restart"

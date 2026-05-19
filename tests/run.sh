@@ -65,11 +65,7 @@ setup_fake_env() {
   TEST_ROOT="$(mktemp -d)"
   export TEST_ROOT
   TEST_HOME="$TEST_ROOT/home"
-  if command -v cygpath >/dev/null 2>&1; then
-    TEST_HOME="$(cygpath -m "$TEST_HOME")"
-  fi
   export HOME="$TEST_HOME"
-  export USERPROFILE="$TEST_HOME"
   export PATH="$TEST_ROOT/bin:$PATH"
   mkdir -p "$HOME/.openclaw/logs" "$HOME/.openclaw" "$TEST_ROOT/bin"
   mkdir -p "$HOME/.config/systemd/user" "$TEST_ROOT/etc/systemd/system"
@@ -225,22 +221,8 @@ EOF
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "${1:-}" == "-o" ]]; then
-  case "${2:-}" in
-    etimes=)
-      if [[ "${PS_ETIMES_UNSUPPORTED:-0}" == "1" ]]; then
-        echo "ps: etimes: keyword not found" >&2
-        exit 1
-      fi
-      printf '%s\n' "${PS_ETIMES:-600}"
-      ;;
-    etime=)
-      printf '%s\n' "${PS_ETIME:-10:00}"
-      ;;
-    *)
-      exit 1
-      ;;
-  esac
+if [[ "${1:-}" == "-o" ]] && [[ "${2:-}" == "etimes=" ]]; then
+  printf '%s\n' "${PS_ETIMES:-600}"
 else
   exit 0
 fi
@@ -552,25 +534,6 @@ EOF
   assert_contains "$output" "All health checks passed"
 }
 
-test_health_check_falls_back_to_etime_when_etimes_unsupported() {
-  setup_fake_env
-  trap teardown_fake_env RETURN
-
-  export CURL_HTTP_STATUS=200
-  export CURL_BODY="gateway live"
-  export PGREP_OUTPUT="1234"
-  export PS_ETIMES_UNSUPPORTED=1
-  export PS_ETIME="10:05"
-
-  cat >"$HOME/.openclaw/health-targets.conf" <<'EOF'
-url|gateway|http://127.0.0.1:18789/health|live
-process|worker|openclaw worker|300
-EOF
-
-  local output
-  output="$(bash "$ROOT_DIR/scripts/health-check.sh" --verbose 2>&1)"
-  assert_contains "$output" "All health checks passed"
-}
 
 test_security_scan_redacts_secret_values() {
   setup_fake_env
@@ -1612,7 +1575,6 @@ run_test test_heal_incident_logging_no_longer_embeds_shell_generated_python
 run_test test_security_scan_detects_nested_files_and_permissions
 run_test test_get_openclaw_version_normalizes_missing_v_prefix
 run_test test_health_check_passes_for_valid_targets
-run_test test_health_check_falls_back_to_etime_when_etimes_unsupported
 run_test test_security_scan_redacts_secret_values
 run_test test_lib_time_and_sanitization_helpers
 run_test test_incident_lifecycle_and_dedup

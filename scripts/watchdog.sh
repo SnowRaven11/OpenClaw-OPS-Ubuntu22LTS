@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# openclaw watchdog.sh — runs every 5 minutes
-# Linux: via systemd user timer (openclaw-watchdog.timer)
-# macOS: via LaunchAgent
+# openclaw watchdog.sh — runs every 5 minutes via systemd user timer
 # Cron fallback: */5 * * * * bash /path/to/watchdog.sh
 # Install with: bash watchdog-install.sh
 
@@ -178,11 +176,10 @@ os.replace(tmp, state_file)
 " "$STATE_FILE" "$HEALTH_FAILURE_WINDOW" 2>/dev/null || true
 }
 
-# On Linux, prefer restarting the systemd unit so the service manager tracks
-# the new PID and restart policy stays consistent. Falls back to the openclaw
-# CLI when the unit is not present (cron installs, non-systemd).
+# Prefer restarting the systemd unit so the service manager tracks the new PID.
+# Falls back to the openclaw CLI when the unit is not present (cron installs).
 gateway_restart() {
-  if [[ "$(uname -s)" == "Linux" ]] && is_systemd_unit_active "openclaw-gateway.service" 2>/dev/null; then
+  if is_systemd_unit_active "openclaw-gateway.service" 2>/dev/null; then
     systemctl --user restart openclaw-gateway.service 2>>"$LOG_FILE"
   else
     openclaw gateway restart 2>>"$LOG_FILE"

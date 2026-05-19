@@ -191,33 +191,20 @@ run_python() {
   printf '%s\n' "$output"
 }
 
-# File modification time in epoch seconds (cross-platform)
+# File modification time in epoch seconds
 file_mtime() {
-  local file="$1"
-  if [[ "$OSTYPE" == "darwin"* ]]; then
-    stat -f%m "$file" 2>/dev/null
-  else
-    stat -c%Y "$file" 2>/dev/null
-  fi
+  stat -c%Y "$1" 2>/dev/null
 }
 
-# File permissions as octal (cross-platform)
+# File permissions as octal
 file_perms() {
-  local file="$1"
-  if [[ "$OSTYPE" == "darwin"* ]]; then
-    stat -f "%OLp" "$file" 2>/dev/null
-  else
-    stat -c "%a" "$file" 2>/dev/null
-  fi
+  stat -c%a "$1" 2>/dev/null
 }
 
-# File size in bytes (cross-platform)
-# Prefers Linux stat -c%s, falls back to macOS stat -f%z, then Python.
+# File size in bytes
 file_size() {
-  local file="$1"
-  stat -c%s "$file" 2>/dev/null || \
-  stat -f%z "$file" 2>/dev/null || \
-  python3 -c "import os,sys; print(os.path.getsize(sys.argv[1]))" "$file" 2>/dev/null || \
+  stat -c%s "$1" 2>/dev/null || \
+  python3 -c "import os,sys; print(os.path.getsize(sys.argv[1]))" "$1" 2>/dev/null || \
   echo 0
 }
 
@@ -251,14 +238,10 @@ except:
 " 2>/dev/null || echo 18789
 }
 
-# ── SHA-256 hash (cross-platform) ──────────────────────────────────────────
-# Prefers sha256sum (standard on Ubuntu/Debian), falls back to shasum (macOS),
-# then openssl as a last resort.
+# ── SHA-256 hash ───────────────────────────────────────────────────────────
 file_sha256() {
-  local file="$1"
-  sha256sum "$file" 2>/dev/null | awk '{print $1}' || \
-  shasum -a 256 "$file" 2>/dev/null | awk '{print $1}' || \
-  openssl dgst -sha256 "$file" 2>/dev/null | awk '{print $NF}' || \
+  sha256sum "$1" 2>/dev/null | awk '{print $1}' || \
+  openssl dgst -sha256 "$1" 2>/dev/null | awk '{print $NF}' || \
   echo "error"
 }
 
@@ -275,29 +258,18 @@ is_systemd_unit_active() {
   systemctl --user is-active "$unit" >/dev/null 2>&1
 }
 
-# ── Platform-aware notifications ───────────────────────────────────────────
+# ── Notifications ──────────────────────────────────────────────────────────
 # Usage: send_notification "Title" "Body text"
-# Writes to journald (always on Linux), desktop popup when available,
-# and falls back to a plain log line. Never fatal.
+# Writes to journald (via systemd-cat) and, when a display session is present,
+# sends a desktop popup via notify-send. Never fatal.
 send_notification() {
   local title="${1:-OpenClaw}"
   local body="${2:-}"
 
-  case "$(uname -s)" in
-    Linux)
-      # Structured journal entry — always available when systemd is running
-      if command -v systemd-cat &>/dev/null; then
-        echo "$title: $body" | systemd-cat -t openclaw-watchdog -p warning 2>/dev/null || true
-      fi
-      # Desktop notification when a display session is present
-      if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v notify-send &>/dev/null; then
-        notify-send --urgency=critical "$title" "$body" 2>/dev/null || true
-      fi
-      ;;
-    Darwin)
-      if command -v osascript &>/dev/null; then
-        osascript -e "display notification \"$body\" with title \"$title\" sound name \"Basso\"" 2>/dev/null || true
-      fi
-      ;;
-  esac
+  if command -v systemd-cat &>/dev/null; then
+    echo "$title: $body" | systemd-cat -t openclaw-watchdog -p warning 2>/dev/null || true
+  fi
+  if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] && command -v notify-send &>/dev/null; then
+    notify-send --urgency=critical "$title" "$body" 2>/dev/null || true
+  fi
 }

@@ -43,11 +43,10 @@ Tested against OpenClaw `2026.5.4`.
 | `curl` | watchdog.sh, health-check.sh HTTP checks |
 | `openssl` | heal.sh auth token generation |
 | `rg` (ripgrep) | session-search.sh |
-| `systemd` (Linux) | watchdog-install.sh systemd timer |
-| `notify-send` (optional) | desktop notifications on Linux when DISPLAY is set |
-| `launchctl` + macOS | watchdog-install.sh LaunchAgent |
+| `systemd` | watchdog-install.sh systemd timer |
+| `notify-send` (optional) | desktop notifications when DISPLAY is set |
 
-**Ubuntu 22 LTS:** run the prerequisites installer once before anything else:
+Run the prerequisites installer once before anything else:
 ```bash
 bash scripts/linux-prereqs.sh
 ```
@@ -62,8 +61,6 @@ openclaw --version
 ```
 
 ## Quick start
-
-### Linux (Ubuntu 22 LTS)
 
 ```bash
 # 1. Install system prerequisites (once)
@@ -83,9 +80,9 @@ systemctl --user status openclaw-watchdog.timer
 
 # 6. View logs
 tail -f ~/.openclaw/logs/watchdog.log
-journalctl --user -u openclaw-watchdog.service -f   # journal view
+journalctl --user -u openclaw-watchdog.service -f
 
-# 7. After every OpenClaw update, run the post-update hook
+# 7. After every OpenClaw update
 bash scripts/post-update.sh
 
 # 8. Run health checks — targets file is auto-generated on first run
@@ -93,27 +90,7 @@ bash scripts/health-check.sh --verbose
 
 # 9. Audit workspace git protection
 bash scripts/workspace-git-audit.sh --show-cron
-```
 
-### macOS
-
-```bash
-# 1. One-time heal pass
-bash scripts/heal.sh
-
-# 2. After every OpenClaw update
-bash scripts/post-update.sh
-
-# 3. Install always-on watchdog (LaunchAgent)
-bash scripts/watchdog-install.sh
-
-# 4. View watchdog log
-tail -f ~/.openclaw/logs/watchdog.log
-```
-
-### Common (both platforms)
-
-```bash
 # Update triage only:
 bash scripts/check-update.sh        # report only
 bash scripts/check-update.sh --fix  # report + auto-fix
@@ -148,18 +125,13 @@ bash scripts/remediation-board.sh list
 
 ## Watchdog escalation model
 
-1. **Tier 1** — HTTP ping every 5 min (systemd timer on Linux, LaunchAgent on macOS, cron fallback)
+1. **Tier 1** — HTTP ping every 5 min (systemd user timer; cron fallback on non-systemd)
 2. **Tier 2** — Gateway restart + `heal.sh` if simple restart fails
-3. **Tier 3** — Notification after 3 failed attempts in 15 min (journald warning on Linux, desktop popup on macOS/desktop)
+3. **Tier 3** — journald warning + desktop popup (via `notify-send`) after 3 failures in 15 min
 
-## Platform support
+## Platform
 
-| Platform | heal.sh | watchdog | systemd timer | LaunchAgent |
-|----------|---------|----------|---------------|-------------|
-| Ubuntu 22 LTS | ✓ | ✓ | ✓ | ✗ |
-| Linux (other) | ✓ | ✓ (cron fallback) | ✓ if systemd | ✗ |
-| macOS | ✓ | ✓ | ✗ | ✓ |
-| Windows WSL2 | ✓ | ✓ (cron) | ✗ | ✗ |
+**Target: Ubuntu 22 LTS.** Cron fallback available for non-systemd Linux. Other platforms are not supported.
 | Windows WSL2 | ✓ | ✓ (via cron) | ✗ |
 
 ## Viewing logs

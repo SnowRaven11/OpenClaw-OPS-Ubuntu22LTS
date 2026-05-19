@@ -66,23 +66,10 @@ print(days * 86400 + hours * 3600 + minutes * 60 + seconds)
 
 process_elapsed_seconds() {
   local pid="$1"
-  local elapsed
-  local seconds
-
+  local elapsed seconds
   elapsed="$(ps -o etimes= -p "$pid" 2>/dev/null | tr -d ' ' || true)"
   seconds="$(elapsed_to_seconds "$elapsed" || true)"
-  if [[ -n "$seconds" ]]; then
-    printf '%s\n' "$seconds"
-    return 0
-  fi
-
-  elapsed="$(ps -o etime= -p "$pid" 2>/dev/null | tr -d ' ' || true)"
-  seconds="$(elapsed_to_seconds "$elapsed" || true)"
-  if [[ -n "$seconds" ]]; then
-    printf '%s\n' "$seconds"
-    return 0
-  fi
-
+  [[ -n "$seconds" ]] && printf '%s\n' "$seconds" && return 0
   return 1
 }
 
