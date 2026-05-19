@@ -21,7 +21,7 @@ By concentrating restart authority in one place, the operator can reason about r
 
 - Mutex via `~/.openclaw/watchdog.lock/` (mkdir-style lock with 15-minute stale-lock recovery)
 - Restart rate limit: `MAX_RESTART_ATTEMPTS=3` per `RESTART_ATTEMPT_WINDOW=900s` (15 min)
-- HTTP `/health` probe with confirmation: when a gateway process exists and HTTP fails, the watchdog requires `REQUIRED_HEALTH_FAILURES=2` consecutive failures within `HEALTH_FAILURE_WINDOW=600s` before restarting. If no `openclaw-gateway` process exists at all, restart proceeds immediately (subject to the rate limit).
+- HTTP `/healthz` probe with confirmation: when the gateway container is running and HTTP fails, the watchdog requires `REQUIRED_HEALTH_FAILURES=2` consecutive failures within `HEALTH_FAILURE_WINDOW=600s` before restarting. If the gateway container is not running, restart proceeds immediately (subject to the rate limit).
 - Warm-up grace: won't restart a process younger than `GATEWAY_WARMUP_GRACE=120s`
 - Agent-layer log probe via `check_agent_layer_health()` — complements the HTTP probe because HTTP `/health` can return 200 while every agent's `tool_calls=0` due to codex backend hangs that are silent at the HTTP layer
 - Escalation path: when the agent-layer probe fails the failure threshold, the watchdog runs `heal.sh` rather than restarting blindly

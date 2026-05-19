@@ -114,8 +114,18 @@ if ! gateway_running; then
   if gateway_do_start; then
     sleep 3
     if gateway_running; then
-      log_fixed "Gateway started"
-      RESTARTED=true
+      log_info "Container started — waiting for healthcheck (up to 30s)"
+      _HEALTHY=false
+      for _ in $(seq 1 10); do
+        if gateway_healthy; then _HEALTHY=true; break; fi
+        sleep 3
+      done
+      if [[ "$_HEALTHY" == "true" ]]; then
+        log_fixed "Gateway started and healthy"
+        RESTARTED=true
+      else
+        log_manual "Gateway container running but health check not yet passing — check: docker logs ${OPENCLAW_GATEWAY_CONTAINER}"
+      fi
     else
       log_broken "Gateway failed to start — try: docker compose -C ${OPENCLAW_STACK_DIR} up -d openclaw-gateway"
     fi

@@ -342,8 +342,8 @@ fi
 log "Attempting gateway restart (attempt $((RESTART_COUNT + 1)) of $MAX_RESTART_ATTEMPTS)"
 record_restart
 
-gateway_restart &
-sleep 8
+gateway_restart 2>&1 | tee -a "$LOG_FILE" || log "gateway restart command failed"
+sleep 20
 
 # Verify it came back up
 HTTP_STATUS_AFTER=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 15 "$GATEWAY_URL" 2>/dev/null || echo "000")

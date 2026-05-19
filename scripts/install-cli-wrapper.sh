@@ -66,10 +66,18 @@ case "\${1:-}" in
       stop)
         exec docker compose -C "\$_STACK_DIR" stop openclaw-gateway ;;
       *)
-        exec docker exec -it "\$_CLI_CONTAINER" node dist/index.js "\$@" ;;
+        if [[ -t 0 && -t 1 ]]; then
+          exec docker exec -it "\$_CLI_CONTAINER" node dist/index.js "\$@"
+        else
+          exec docker exec -i "\$_CLI_CONTAINER" node dist/index.js "\$@"
+        fi ;;
     esac ;;
   *)
-    exec docker exec -it "\$_CLI_CONTAINER" node dist/index.js "\$@" ;;
+    if [[ -t 0 && -t 1 ]]; then
+      exec docker exec -it "\$_CLI_CONTAINER" node dist/index.js "\$@"
+    else
+      exec docker exec -i "\$_CLI_CONTAINER" node dist/index.js "\$@"
+    fi ;;
 esac
 EOF
 chmod +x "$WRAPPER"

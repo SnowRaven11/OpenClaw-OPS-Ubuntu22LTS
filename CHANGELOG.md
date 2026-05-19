@@ -6,6 +6,16 @@ Notable changes to openclaw-ops. Format follows [Keep a Changelog](https://keepa
 
 ---
 
+## [v1.2.1] — 2026-05-19
+
+### Fixed
+- `scripts/watchdog.sh` — health probe was hitting `/health` instead of `/healthz` (actual gateway endpoint); would cause the watchdog to always see the gateway as unreachable and trigger restart-storms on a healthy container
+- `scripts/codex-perf-check.sh` — gateway restart block still used `is_systemd_unit_active("openclaw-gateway.service")` + `systemctl --user restart`; the service unit was deleted in v1.2.0 so the restart silently failed after every `--fix` run; now calls `_docker_compose_restart()`
+- `scripts/check-update.sh` — `restart_hint()` emitted `systemctl --user restart openclaw-gateway.service`; updated to emit `docker compose restart` with the wrapper alternative
+- `SKILL.md` — 5 references to `openclaw-gateway.service` in diagnostic commands and interpretation rules; updated to `docker inspect`/`docker logs`/`docker exec` equivalents
+
+---
+
 ## [v1.2.0] — 2026-05-19
 
 Docker Compose is now the standard deployment model. The systemd gateway service is removed; Docker Compose (`restart: unless-stopped`) owns the gateway lifecycle. The watchdog timer still runs every 5 minutes via systemd to detect and recover stuck/unhealthy states.
