@@ -1,6 +1,6 @@
 # Contributing to openclaw-ops
 
-Thanks for considering a contribution. This is a maintainer-driven repo, but external contributions are welcome — especially around new failure patterns and platform parity (Linux, BSD).
+Thanks for considering a contribution. This is a maintainer-driven repo, but external contributions are welcome — especially around new failure patterns and Ubuntu 22 LTS operational improvements.
 
 ## Quick rules
 
@@ -22,9 +22,9 @@ The most valuable contribution is a **new failure pattern** the watchdog should 
 If you're submitting a PR for the pattern:
 
 1. Add the new pattern to the alternation in `check_agent_layer_health()` in `scripts/watchdog.sh`
-2. Verify your pattern doesn't false-trigger by running the dedupe pipeline against your local log (BSD `date -v-24H` for macOS; GNU `date -d` for Linux):
+2. Verify your pattern doesn't false-trigger by running the dedupe pipeline against your local log:
    ```bash
-   cutoff="$( (date -u -v-24H '+%Y-%m-%dT%H' 2>/dev/null) || date -u -d '24 hours ago' '+%Y-%m-%dT%H' )"
+   cutoff="$(date -u -d '24 hours ago' '+%Y-%m-%dT%H')"
    awk -v cut="$cutoff" -v pat='<your new pattern>' '
      $1 >= cut && $0 ~ pat { seen[$1]=1 }
      END { print length(seen) }
@@ -35,7 +35,6 @@ If you're submitting a PR for the pattern:
 
 ## Other contributions worth doing
 
-- **Linux / systemd parity** for any LaunchAgent-only flow (`watchdog-install.sh`, `bb-session-rotator`)
 - **`shellcheck` fixes** — run `shellcheck scripts/*.sh` and submit a PR for any high-severity findings
 - **Test coverage** — `tests/run.sh` covers a lot but not everything; new tests welcome
 - **Doc clarity** — if a doc confused you on first read, your edit will help others
