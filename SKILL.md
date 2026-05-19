@@ -30,7 +30,6 @@ If the user has a local development checkout of this repo, prefer that over the 
 | `watchdog.sh` | Continuous monitoring; runs every 5 min via systemd user timer. HTTP health check → auto-restart → journald escalation after 3 failures |
 | `watchdog-install.sh` | Install the watchdog as a systemd user timer; enables user lingering for headless boot-time startup. Cron fallback for non-systemd environments |
 | `watchdog-uninstall.sh` | Remove the watchdog (systemd units and/or cron entry) |
-| `linux-prereqs.sh` | Install system dependencies and enable user lingering (run once on a fresh machine) |
 | `check-update.sh` | After a version change — detects breaking config changes, explains them; `--fix` to auto-repair |
 | `health-check.sh` | URL/process health checks for gateway-adjacent services; copy `templates/health-targets.conf.example` first |
 | `session-monitor.sh` | Agent is alive but misbehaving — retry loops, hangs, auth loops, noisy failures |

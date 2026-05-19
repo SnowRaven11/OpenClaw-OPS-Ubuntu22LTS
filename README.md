@@ -18,7 +18,6 @@ Tested against OpenClaw `2026.5.4`.
 | `scripts/watchdog.sh` | Runs every 5 min, restarts gateway if down, escalates after 3 failures |
 | `scripts/watchdog-install.sh` | Installs the watchdog as a systemd user timer; cron fallback for non-systemd |
 | `scripts/watchdog-uninstall.sh` | Removes the watchdog (systemd units and/or cron entry) |
-| `scripts/linux-prereqs.sh` | Install Ubuntu 22 dependencies and enable user lingering |
 | `scripts/check-update.sh` | Detects version changes, explains broken config, auto-fix with `--fix` |
 | `scripts/health-check.sh` | Declarative URL/process health checks; auto-generates targets file on first run |
 | `scripts/security-scan.sh` | Config hardening and credential exposure scan (0–100 score); skips bulky runtime/log/session history unless `--include-sessions` is passed |
@@ -44,13 +43,12 @@ Tested against OpenClaw `2026.5.4`.
 | `openssl` | heal.sh auth token generation |
 | `rg` (ripgrep) | session-search.sh |
 | `systemd` | watchdog-install.sh systemd timer |
-| `notify-send` (optional) | desktop notifications when DISPLAY is set |
+| `notify-send` (optional) | desktop notifications when DISPLAY is set — `sudo apt-get install libnotify-bin` |
 
-Run the prerequisites installer once before anything else:
+`python3`, `curl`, and `openssl` are pre-installed on Ubuntu 22 LTS. Install `ripgrep` if you want `session-search.sh`:
 ```bash
-bash scripts/linux-prereqs.sh
+sudo apt-get install -y ripgrep
 ```
-This installs `python3`, `curl`, `openssl`, `ripgrep`, `libnotify-bin`, `jq`, and enables user lingering for boot-time service startup.
 
 ## Minimum version
 
@@ -63,10 +61,7 @@ openclaw --version
 ## Quick start
 
 ```bash
-# 1. Install system prerequisites (once)
-bash scripts/linux-prereqs.sh
-
-# 2. Install openclaw
+# 1. Install openclaw
 curl -fsSL https://openclaw.ai/install.sh | bash
 
 # 3. One-time heal pass

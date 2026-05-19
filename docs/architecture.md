@@ -62,7 +62,7 @@ openclaw-ops runs two systemd user units installed by `watchdog-install.sh`:
 
 **Watchdog timer** — uses `OnCalendar=*:0/5` with `Persistent=true`. The `Persistent` flag means a missed tick (system was suspended) fires once on resume rather than being silently skipped.
 
-**Lingering** — for headless/server installs, `loginctl enable-linger $USER` is required so user units start at boot without a login session. `watchdog-install.sh` and `linux-prereqs.sh` both set this automatically.
+**Lingering** — for headless/server installs, `loginctl enable-linger $USER` is required so user units start at boot without a login session. `watchdog-install.sh` sets this automatically.
 
 ### Log paths
 

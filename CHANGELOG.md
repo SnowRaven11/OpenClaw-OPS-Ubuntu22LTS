@@ -6,6 +6,23 @@ Notable changes to openclaw-ops. Format follows [Keep a Changelog](https://keepa
 
 ---
 
+## [v1.0.6] — 2026-05-19
+
+### Removed
+- `scripts/linux-prereqs.sh` — deleted. Most packages it installed (`python3`,
+  `curl`, `openssl`, `procps`) are pre-installed on Ubuntu 22 LTS. `loginctl
+  enable-linger` is already handled by `watchdog-install.sh`. `jq` was listed
+  but not used by any script. Only `ripgrep` (for `session-search.sh`) and
+  `libnotify-bin` (optional desktop notifications) are non-standard; these are
+  now noted inline in the README prerequisites table.
+
+### Changed
+- `README.md` — prerequisites table now includes install hints for optional
+  packages (`ripgrep`, `libnotify-bin`) directly; removed the installer block
+  and the step referencing it from the quick-start guide
+
+---
+
 ## [v1.0.5] — 2026-05-19
 
 ### Added
