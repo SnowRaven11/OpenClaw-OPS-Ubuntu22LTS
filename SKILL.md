@@ -161,15 +161,15 @@ openclaw memory status --deep
 CODEX_HOME=~/.openclaw/codex-home codex exec --skip-git-repo-check --sandbox read-only --color never "respond with: alive" </dev/null
 tail -30 ~/.openclaw/logs/watchdog.log
 tail -80 ~/.openclaw/logs/gateway.err.log
-# Linux: also check journal
-journalctl --user -u openclaw-gateway.service --since "1 hour ago" --no-pager 2>/dev/null || true
+# Docker: also check container logs
+docker logs --since 1h openclaw-openclaw-gateway-1 2>/dev/null || true
 ```
 
 Interpretation rules:
 
-- If `heal.sh` says `Gateway failed to start`, immediately re-check with `openclaw gateway status` and an HTTP probe. On Linux, also check `systemctl --user status openclaw-gateway.service` — systemd may have restarted it after `heal.sh` probed.
+- If `heal.sh` says `Gateway failed to start`, immediately re-check with `openclaw gateway status` and an HTTP probe. Also check the Docker container state: `docker inspect --format "{{.State.Status}}" openclaw-openclaw-gateway-1` — Docker may have restarted it via `restart: unless-stopped` after `heal.sh` probed.
 - If `daily-digest.sh` reports auth errors for Codex-backed agents, verify with the Codex CLI command above before calling it auth. Add `</dev/null` to avoid `codex exec` waiting forever on stdin (`Reading additional input from stdin...`). If direct Codex still times out but `openclaw agent --agent <name> --session-id health-probe-$(date +%s) --message "Health probe. Reply exactly: OPENCLAW_ALIVE" --thinking low --timeout 240 --json` succeeds, treat the agent runtime as healthy and the direct CLI probe as a separate Codex CLI/harness issue. `codex app-server client is closed` is a bundled Codex subprocess failure, not an OpenClaw auth failure.
-- If `openclaw gateway status` reports an entrypoint mismatch, check `systemctl --user cat openclaw-gateway.service` to see the exact binary the unit uses, then run probes through that path before trusting CLI-only failures.
+- If `openclaw gateway status` reports an entrypoint mismatch, check `docker inspect openclaw-openclaw-gateway-1 --format "{{.Config.Cmd}}"` to see the exact command the container uses, then run probes through that path before trusting CLI-only failures.
 - If `openclaw channels status --probe` says `Gateway event loop degraded` but every channel still reports `works` and the watchdog stays HTTP 200, treat it as a load signal, not an outage. Check `openclaw status --deep`, active sessions, and recent `liveness warning` lines before restarting.
 - If `openclaw doctor` warns that `openai-codex/*` refs resolve with runtime `pi`, do not automatically “fix” it. This can be intentional for Codex OAuth/subscription auth through PI. Use `bash scripts/codex-perf-check.sh`; only run `--fix` if the user wants native Codex app-server and accepts the model/runtime migration.
 - A green HTTP/WebSocket gateway check is not enough. Also check channels, stuck sessions, watchdog events, Codex backend health, and memory search readiness.
@@ -177,23 +177,15 @@ Interpretation rules:
 
 ### Duplicate install cleanup
 
-If CLI probes and the systemd service disagree, check whether multiple OpenClaw installs exist:
+If CLI probes and the Docker container disagree, check whether multiple OpenClaw installs exist:
 
 ```bash
 type -a openclaw
-npm list -g openclaw --depth=0 2>/dev/null || true
-systemctl --user cat openclaw-gateway.service | grep ExecStart
+docker inspect openclaw-openclaw-gateway-1 --format '{{.Config.Image}} {{json .Config.Cmd}}' 2>/dev/null || true
+docker exec openclaw-openclaw-cli-1 node dist/index.js --version 2>/dev/null || true
 ```
 
-Keep the install used by the gateway service unit. Remove stale npm-global duplicates only after confirming systemd is not using them:
-
-```bash
-npm uninstall -g openclaw
-hash -r
-type -a openclaw
-openclaw gateway status
-systemctl --user status openclaw-gateway.service
-```
+Keep the install used by the gateway container. The host `~/.local/bin/openclaw` wrapper should proxy to `docker exec openclaw-openclaw-cli-1 node dist/index.js`. Re-run `bash scripts/install-cli-wrapper.sh` to regenerate if it points to a stale container name.
 
 ### Systemd unit quarantine reset
 
@@ -206,7 +198,7 @@ mkdir -p "$quarantine"
 systemctl --user list-units --all | rg 'openclaw' || true
 ```
 
-Disable and move custom units — keep `openclaw-gateway.service` running:
+Disable and move custom units — the gateway runs in Docker, not systemd:
 
 ```bash
 for unit in openclaw-watchdog.timer openclaw-watchdog.service; do

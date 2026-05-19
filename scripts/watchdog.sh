@@ -269,7 +269,7 @@ check_agent_layer_health() {
 
 # ── Gateway health check ──────────────────────────────────────────────────────
 GATEWAY_PORT="$(get_gateway_port)"
-GATEWAY_URL="http://127.0.0.1:${GATEWAY_PORT}/health"
+GATEWAY_URL="http://127.0.0.1:${GATEWAY_PORT}/healthz"
 
 HTTP_STATUS=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 15 "$GATEWAY_URL" 2>/dev/null || echo "000")
 

@@ -32,13 +32,10 @@ bad()   { echo -e "${RED}[✗]${RST} $1"; }
 info()  { echo -e "${CYN}[~]${RST} $1"; }
 fixed() { echo -e "${GRN}[FIXED]${RST} $1"; }
 
-# Print the gateway restart command — systemctl when the unit is managed, else openclaw CLI.
+# Print the gateway restart command for Docker Compose deployments.
 restart_hint() {
-  if is_systemd_unit_active "openclaw-gateway.service" 2>/dev/null; then
-    echo "  systemctl --user restart openclaw-gateway.service"
-  else
-    echo "  openclaw gateway restart"
-  fi
+  echo "  docker compose -C ${OPENCLAW_STACK_DIR} restart openclaw-gateway"
+  echo "  (or: openclaw gateway restart  — if the host CLI wrapper is installed)"
 }
 
 echo ""
