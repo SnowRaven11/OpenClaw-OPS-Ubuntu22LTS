@@ -5,7 +5,7 @@ set -euo pipefail
 # Install with: bash watchdog-install.sh
 
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" && source "$LIB_DIR/lib.sh"
-require_tools python3 openclaw
+require_tools python3
 
 LOG_DIR="${OPENCLAW_LOG_DIR:-$HOME/.openclaw/logs}"
 LOG_FILE="$LOG_DIR/watchdog.log"
@@ -176,32 +176,28 @@ os.replace(tmp, state_file)
 " "$STATE_FILE" "$HEALTH_FAILURE_WINDOW" 2>/dev/null || true
 }
 
-# Prefer restarting the systemd unit so the service manager tracks the new PID.
-# Falls back to the openclaw CLI when the unit is not present (cron installs).
+# Restart the gateway via Docker Compose. The compose service owns the gateway
+# lifecycle (restart: unless-stopped); we force a restart here when the watchdog
+# determines recovery is required.
 gateway_restart() {
-  if is_systemd_unit_active "openclaw-gateway.service" 2>/dev/null; then
-    systemctl --user restart openclaw-gateway.service 2>>"$LOG_FILE"
-  else
-    openclaw gateway restart 2>>"$LOG_FILE"
-  fi
+  _docker_compose_restart 2>>"$LOG_FILE"
 }
 
-gateway_pid() {
-  pgrep -x openclaw-gateway 2>/dev/null | head -1 || \
-    pgrep -f 'openclaw.*gateway' 2>/dev/null | head -1 || \
-    true
-}
-
-gateway_process_age() {
-  local pid="$1"
-  local age
-
-  age="$(ps -o etimes= -p "$pid" 2>/dev/null | tr -dc '0-9' || true)"
-  if [[ -z "$age" ]]; then
-    echo 999999
-  else
-    echo "$age"
-  fi
+# Returns seconds since the gateway container started, or 999999 on error.
+# Used to enforce GATEWAY_WARMUP_GRACE without docker being stubable in tests
+# (docker inspect failure safely returns the large fallback).
+_gateway_container_age_seconds() {
+  local started
+  started="$(docker inspect "${OPENCLAW_GATEWAY_CONTAINER}"     --format '{{.State.StartedAt}}' 2>/dev/null || true)"
+  [[ -z "$started" ]] && echo 999999 && return
+  python3 -c "
+from datetime import datetime, timezone
+import sys
+raw = sys.argv[1].rstrip('Z').split('.')[0]
+started = datetime.fromisoformat(raw).replace(tzinfo=timezone.utc)
+now = datetime.now(timezone.utc)
+print(int((now - started).total_seconds()))
+" "$started" 2>/dev/null || echo 999999
 }
 
 maybe_run_session_monitor() {
@@ -314,14 +310,13 @@ fi
 # ── Gateway is down ───────────────────────────────────────────────────────────
 log "Gateway unreachable (HTTP $HTTP_STATUS)"
 
-GATEWAY_PID="$(gateway_pid)"
-if [[ -n "$GATEWAY_PID" ]]; then
-  GATEWAY_AGE="$(gateway_process_age "$GATEWAY_PID")"
-  if (( GATEWAY_AGE < GATEWAY_WARMUP_GRACE )); then
-    log "Gateway process PID $GATEWAY_PID is only ${GATEWAY_AGE}s old; treating as warm-up and not restarting"
-    exit 0
-  fi
+GATEWAY_AGE="$(_gateway_container_age_seconds)"
+if (( GATEWAY_AGE < GATEWAY_WARMUP_GRACE )); then
+  log "Gateway container is only ${GATEWAY_AGE}s old; treating as warm-up — not restarting"
+  exit 0
+fi
 
+if gateway_running; then
   record_health_failure
   HEALTH_FAILURE_COUNT="$(get_health_failure_count)"
   log "Gateway health failures in last ${HEALTH_FAILURE_WINDOW}s: $HEALTH_FAILURE_COUNT"
@@ -330,7 +325,7 @@ if [[ -n "$GATEWAY_PID" ]]; then
     exit 1
   fi
 else
-  log "No OpenClaw gateway process found; restart may proceed after restart-attempt checks"
+  log "Gateway container not running; restart may proceed after restart-attempt checks"
 fi
 
 RESTART_COUNT=$(get_restart_count)

@@ -52,13 +52,16 @@ This keeps all agent-layer detection in one place that an operator can reason ab
 openclaw-ops runs two systemd user units installed by `watchdog-install.sh`:
 
 ```
+Docker Compose stack (/srv/openclaw/openclaw/ by default):
+  openclaw-openclaw-gateway-1   # gateway, port 18789, restart: unless-stopped
+  openclaw-openclaw-cli-1       # CLI, accessed via docker exec
+
 ~/.config/systemd/user/
-  openclaw-gateway.service   # manages the gateway process (Restart=no)
-  openclaw-watchdog.service  # oneshot: runs watchdog.sh each timer tick
-  openclaw-watchdog.timer    # fires watchdog.service every 5 minutes
+  openclaw-watchdog.service     # oneshot: runs watchdog.sh each timer tick
+  openclaw-watchdog.timer       # fires watchdog.service every 5 minutes
 ```
 
-**Gateway service (`Restart=no`)** — the watchdog owns restart authority (see above). Setting `Restart=on-failure` would race with the watchdog's rate-limit counter and break the safety brake.
+**Gateway (Docker Compose, `restart: unless-stopped`)** — Docker auto-restarts the gateway on crashes. The watchdog complements this by detecting stuck/unhealthy states (HTTP probe failing while the container is still running) and calling `docker compose restart` through `_docker_compose_restart()`. The watchdog's rate-limit counter prevents restart storms.
 
 **Watchdog timer** — uses `OnCalendar=*:0/5` with `Persistent=true`. The `Persistent` flag means a missed tick (system was suspended) fires once on resume rather than being silently skipped.
 
@@ -69,7 +72,7 @@ openclaw-ops runs two systemd user units installed by `watchdog-install.sh`:
 | Source | Command |
 |--------|---------|
 | Gateway file log | `tail -f ~/.openclaw/logs/gateway.err.log` |
-| Gateway journal | `journalctl --user -u openclaw-gateway.service -f` |
+| Gateway Docker logs | `docker logs -f openclaw-openclaw-gateway-1` |
 | Watchdog file log | `tail -f ~/.openclaw/logs/watchdog.log` |
 | Watchdog journal | `journalctl --user -u openclaw-watchdog.service -f` |
 | All openclaw units | `journalctl --user -t openclaw-watchdog -f` |
@@ -78,7 +81,7 @@ Log files in `~/.openclaw/logs/` are rotated daily by `log-rotate.sh`, installed
 
 ### Restart command
 
-`watchdog.sh` calls `systemctl --user restart openclaw-gateway.service` when the unit exists, so the service manager tracks the new PID. It falls back to `openclaw gateway restart` when the unit is absent (cron fallback installs).
+`watchdog.sh` calls `docker compose -C $OPENCLAW_STACK_DIR restart openclaw-gateway` via `_docker_compose_restart()`. Docker Compose owns the gateway lifecycle; the watchdog forces a restart when the HTTP probe fails beyond the `REQUIRED_HEALTH_FAILURES` threshold. The gateway service is no longer managed by a systemd user unit — `restart: unless-stopped` in the Compose file handles crash recovery automatically.
 
 ### Notifications
 

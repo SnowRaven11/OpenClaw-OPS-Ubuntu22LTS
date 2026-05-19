@@ -63,6 +63,19 @@ python3() {
   "${OPENCLAW_PYTHON3_CMD[@]}" "$@"
 }
 
+# ── Docker / ops-config ─────────────────────────────────────────────────────
+# Source user-specific overrides written by install-cli-wrapper.sh.
+# Sets OPENCLAW_STACK_DIR, OPENCLAW_GATEWAY_CONTAINER, OPENCLAW_CLI_CONTAINER
+# for site-specific Docker Compose installs. All vars default safely so scripts
+# work without the file (e.g. in tests or native-process installs).
+_OPS_CONFIG="${HOME}/.openclaw/ops-config.sh"
+# shellcheck source=/dev/null
+[[ -f "$_OPS_CONFIG" ]] && source "$_OPS_CONFIG" || true
+
+OPENCLAW_STACK_DIR="${OPENCLAW_STACK_DIR:-/srv/openclaw/openclaw}"
+OPENCLAW_GATEWAY_CONTAINER="${OPENCLAW_GATEWAY_CONTAINER:-openclaw-openclaw-gateway-1}"
+OPENCLAW_CLI_CONTAINER="${OPENCLAW_CLI_CONTAINER:-openclaw-openclaw-cli-1}"
+
 # ── Preflight checks ───────────────────────────────────────────────────────
 require_tools() {
   local missing=()
@@ -257,6 +270,46 @@ is_systemd_available() {
 is_systemd_unit_active() {
   local unit="$1"
   systemctl --user is-active "$unit" >/dev/null 2>&1
+}
+
+# ── Docker gateway helpers ──────────────────────────────────────────────────
+# Thin wrappers around docker commands so tests can override them by sourcing
+# OPENCLAW_DOCKER_STUBS without stubbing the docker binary itself.
+# Requires Docker Compose v2.23+ (docker compose -C, not docker-compose).
+
+_docker_gateway_status() {
+  docker inspect "${OPENCLAW_GATEWAY_CONTAINER}"     --format '{{.State.Status}}' 2>/dev/null || echo "missing"
+}
+
+_docker_gateway_health() {
+  docker inspect "${OPENCLAW_GATEWAY_CONTAINER}"     --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}'     2>/dev/null || echo "none"
+}
+
+_docker_compose_restart() {
+  docker compose -C "${OPENCLAW_STACK_DIR}" restart openclaw-gateway
+}
+
+_docker_compose_up() {
+  docker compose -C "${OPENCLAW_STACK_DIR}" up -d openclaw-gateway
+}
+
+# Allow test environments to override the four helpers above without stubbing docker.
+# shellcheck source=/dev/null
+[[ -n "${OPENCLAW_DOCKER_STUBS:-}" && -f "${OPENCLAW_DOCKER_STUBS}" ]] &&   source "${OPENCLAW_DOCKER_STUBS}" || true
+
+# Returns 0 if the gateway container is in state "running".
+gateway_running() {
+  [[ "$(_docker_gateway_status)" == "running" ]]
+}
+
+# Returns 0 if the Docker healthcheck reports "healthy".
+gateway_healthy() {
+  [[ "$(_docker_gateway_health)" == "healthy" ]]
+}
+
+# Returns 0 if the expected gateway container exists in Docker.
+is_docker_deployment() {
+  docker inspect "${OPENCLAW_GATEWAY_CONTAINER}" >/dev/null 2>&1
 }
 
 # ── Notifications ──────────────────────────────────────────────────────────

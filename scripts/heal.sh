@@ -15,7 +15,7 @@ RESTARTED=false
 STATE_FILE="$HOME/.openclaw/watchdog-state.json"
 
 # ── Preflight: check required tools ──────────────────────────────────────────
-require_tools openclaw python3 curl openssl pgrep || exit 1
+require_tools python3 curl openssl || exit 1
 mkdir -p "$(dirname "$STATE_FILE")"
 
 # Override log helpers to also track in arrays
@@ -23,27 +23,13 @@ log_fixed()  { echo -e "${GRN}[FIXED]${RST}  $1"; FIXED+=("$1"); }
 log_broken() { echo -e "${RED}[BROKEN]${RST} $1"; BROKEN+=("$1"); }
 log_manual() { echo -e "${YLW}[MANUAL]${RST} $1"; MANUAL+=("$1"); }
 
-gateway_running() {
-  pgrep -x openclaw-gateway >/dev/null 2>&1 || \
-    pgrep -f 'openclaw.*gateway' >/dev/null 2>&1
-}
-
-# Prefer systemctl when the gateway is a managed unit so the service manager
-# tracks the new PID. Falls back to the openclaw CLI otherwise (cron installs).
+# Gateway lifecycle via Docker Compose (lib.sh provides gateway_running()).
 gateway_do_start() {
-  if systemctl --user list-unit-files openclaw-gateway.service 2>/dev/null | grep -q openclaw-gateway; then
-    systemctl --user start openclaw-gateway.service 2>/dev/null
-  else
-    openclaw gateway start 2>/dev/null
-  fi
+  _docker_compose_up 2>/dev/null
 }
 
 gateway_do_restart() {
-  if is_systemd_unit_active "openclaw-gateway.service" 2>/dev/null; then
-    systemctl --user restart openclaw-gateway.service 2>/dev/null
-  else
-    openclaw gateway restart 2>/dev/null
-  fi
+  _docker_compose_restart 2>/dev/null
 }
 
 echo ""
@@ -131,7 +117,7 @@ if ! gateway_running; then
       log_fixed "Gateway started"
       RESTARTED=true
     else
-      log_broken "Gateway failed to start — check logs: tail -50 ~/.openclaw/logs/gateway.err.log"
+      log_broken "Gateway failed to start — try: docker compose -C ${OPENCLAW_STACK_DIR} up -d openclaw-gateway"
     fi
   else
     log_broken "Gateway start command failed"
@@ -358,7 +344,7 @@ if [[ ${#FIXED[@]} -gt 0 ]] && [[ "$RESTARTED" == "false" ]]; then
   log_info "Restarting gateway to apply fixes"
   gateway_do_restart && \
     log_fixed "Gateway restarted" || \
-    log_broken "Gateway restart failed — try: openclaw gateway restart"
+    log_broken "Gateway restart failed — try: docker compose -C ${OPENCLAW_STACK_DIR} restart openclaw-gateway"
   RESTARTED=true
 elif [[ "$RESTARTED" == "true" ]]; then
   log_info "Gateway already restarted"

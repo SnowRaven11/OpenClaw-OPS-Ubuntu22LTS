@@ -39,6 +39,12 @@ if ! systemctl --user status >/dev/null 2>&1 && ! systemctl --user list-units >/
   echo "  Log:        $LOG_DIR/watchdog.log"
   echo ""
   echo "Log rotation: @daily cron entry installed (log-rotate.sh)"
+  if ! command -v openclaw &>/dev/null; then
+    echo ""
+    echo "Note: 'openclaw' not in PATH."
+    echo "  For Docker Compose installs, run: bash $SCRIPTS_DIR/install-cli-wrapper.sh"
+    echo "  Then add ~/.local/bin to your PATH."
+  fi
   exit 0
 fi
 
@@ -49,7 +55,7 @@ service_dst="$systemd_dir/openclaw-watchdog.service"
 timer_dst="$systemd_dir/openclaw-watchdog.timer"
 
 if [[ ! -f "$service_src" ]] || [[ ! -f "$timer_src" ]]; then
-  echo "Error: systemd unit templates not found under $(dirname "$service_src")."
+  echo "Error: systemd watchdog unit templates not found under $(dirname "$service_src")."
   exit 1
 fi
 
@@ -101,3 +107,9 @@ echo "  Log:       tail -f $LOG_DIR/watchdog.log"
 echo ""
 echo "Log rotation: $LOG_ROTATE_MSG"
 echo "  Run now:   bash $SCRIPTS_DIR/log-rotate.sh"
+echo ""
+if ! command -v openclaw &>/dev/null; then
+  echo "Note: 'openclaw' not in PATH."
+  echo "  For Docker Compose installs, run: bash $SCRIPTS_DIR/install-cli-wrapper.sh"
+  echo "  Then add ~/.local/bin to your PATH."
+fi

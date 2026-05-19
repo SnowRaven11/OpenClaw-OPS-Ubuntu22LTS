@@ -16,6 +16,7 @@ Tested against OpenClaw `2026.5.4`.
 | `scripts/heal.sh` | One-shot auto-fix for the most common gateway issues |
 | `scripts/post-update.sh` | Explicit post-update orchestrator: check-update, heal, workspace reconcile, security scan, final health check, policy-guard sentinel trigger |
 | `scripts/watchdog.sh` | Runs every 5 min, restarts gateway if down, escalates after 3 failures |
+| `scripts/install-cli-wrapper.sh` | Installs `~/.local/bin/openclaw` host wrapper for Docker Compose installs; writes `~/.openclaw/ops-config.sh` |
 | `scripts/watchdog-install.sh` | Installs the watchdog as a systemd user timer; cron fallback for non-systemd |
 | `scripts/watchdog-uninstall.sh` | Removes the watchdog (systemd units and/or cron entry) |
 | `scripts/check-update.sh` | Detects version changes, explains broken config, auto-fix with `--fix` |
@@ -43,7 +44,9 @@ Tested against OpenClaw `2026.5.4`.
 | `curl` | watchdog.sh, health-check.sh HTTP checks |
 | `openssl` | heal.sh auth token generation |
 | `rg` (ripgrep) | session-search.sh |
-| `systemd` | watchdog-install.sh systemd timer |
+| `docker` | gateway detection and restart (watchdog.sh, heal.sh) |
+| `docker compose` (v2) | gateway lifecycle — restart/up via Compose |
+| `systemd` | watchdog timer only (gateway managed by Docker Compose) |
 | `notify-send` (optional) | desktop notifications when DISPLAY is set — `sudo apt-get install libnotify-bin` |
 
 `logrotate` is also pre-installed on Ubuntu 22 LTS and is used by `log-rotate.sh` to keep `~/.openclaw/logs` from growing unbounded (installed automatically by `watchdog-install.sh`).
@@ -64,8 +67,12 @@ openclaw --version
 ## Quick start
 
 ```bash
-# 1. Install openclaw
-curl -fsSL https://openclaw.ai/install.sh | bash
+# 1. Verify Docker Compose gateway is running
+docker compose -C /srv/openclaw/openclaw ps
+
+# 2. Install host CLI wrapper (routes openclaw commands to Docker containers)
+bash scripts/install-cli-wrapper.sh
+# Add ~/.local/bin to PATH if prompted, then: source ~/.bashrc
 
 # 3. One-time heal pass
 bash scripts/heal.sh
@@ -134,7 +141,7 @@ bash scripts/remediation-board.sh list
 ## Viewing logs
 
 ```bash
-journalctl --user -u openclaw-gateway -f
+docker logs -f openclaw-openclaw-gateway-1
 journalctl --user -u openclaw-watchdog.service -f
 tail -f ~/.openclaw/logs/gateway.err.log
 tail -f ~/.openclaw/logs/watchdog.log

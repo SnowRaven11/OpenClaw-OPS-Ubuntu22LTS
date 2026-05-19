@@ -229,6 +229,32 @@ fi
 EOF
   chmod +x "$TEST_ROOT/bin/ps"
 
+  # Docker helper stubs — sourced by lib.sh via OPENCLAW_DOCKER_STUBS so tests
+  # override the four _docker_* functions without needing Docker installed.
+  # Default: gateway is running and healthy. Override per-test via env vars:
+  #   DOCKER_GATEWAY_STATUS (default: running)
+  #   DOCKER_GATEWAY_HEALTH (default: healthy)
+  #   DOCKER_RESTART_RC     (default: 0)
+  #   DOCKER_UP_RC          (default: 0)
+  cat >"$TEST_ROOT/docker-stubs.sh" <<'EOF'
+_docker_gateway_status()  { echo "${DOCKER_GATEWAY_STATUS:-running}"; }
+_docker_gateway_health()  { echo "${DOCKER_GATEWAY_HEALTH:-healthy}"; }
+_docker_compose_restart() {
+  [[ -n "${OPENCLAW_CALL_LOG:-}" ]] && printf 'docker_compose_restart
+' >>"$OPENCLAW_CALL_LOG"
+  return "${DOCKER_RESTART_RC:-0}"
+}
+_docker_compose_up() {
+  [[ -n "${OPENCLAW_CALL_LOG:-}" ]] && printf 'docker_compose_up
+' >>"$OPENCLAW_CALL_LOG"
+  return "${DOCKER_UP_RC:-0}"
+}
+EOF
+  export OPENCLAW_DOCKER_STUBS="$TEST_ROOT/docker-stubs.sh"
+  export OPENCLAW_STACK_DIR="$TEST_ROOT/fake-stack"
+  export OPENCLAW_GATEWAY_CONTAINER="fake-openclaw-gateway-1"
+  export OPENCLAW_CLI_CONTAINER="fake-openclaw-cli-1"
+
   # Fake systemctl — units are not installed by default in the test environment.
   # Use env vars to simulate specific states:
   #   SYSTEMCTL_GATEWAY_ACTIVE_RC  (default 3 = inactive)
@@ -343,6 +369,25 @@ EOF
 
 teardown_fake_env() {
   rm -rf "$TEST_ROOT"
+}
+
+test_watchdog_restarts_unhealthy_docker_gateway() {
+  setup_fake_env
+  trap teardown_fake_env RETURN
+
+  export CURL_HTTP_STATUS=000
+  export DOCKER_GATEWAY_STATUS=running
+  export DOCKER_GATEWAY_HEALTH=unhealthy
+  export OPENCLAW_CALL_LOG="$HOME/.openclaw/logs/calls.log"
+  mkdir -p "$(dirname "$OPENCLAW_CALL_LOG")"
+
+  # Two runs needed to hit REQUIRED_HEALTH_FAILURES=2
+  bash "$ROOT_DIR/scripts/watchdog.sh" >/dev/null 2>&1 || true
+  bash "$ROOT_DIR/scripts/watchdog.sh" >/dev/null 2>&1 || true
+
+  local call_log
+  call_log="$(cat "$OPENCLAW_CALL_LOG" 2>/dev/null || true)"
+  assert_contains "$call_log" "docker_compose_restart"
 }
 
 test_version_change_survives_watchdog_for_check_update() {
@@ -1600,4 +1645,5 @@ run_test test_context_audit_filters_thresholds_and_agent_scope
 run_test test_workspace_auto_commit_commits_dirty_repo_and_audit_reports_coverage
 run_test test_workspace_git_audit_cron_matching_is_per_job_and_strict_controls_exit
 run_test test_daily_digest_summarizes_incidents_activity_and_watchdog
+run_test test_watchdog_restarts_unhealthy_docker_gateway
 printf 'All openclaw-ops tests passed\n'

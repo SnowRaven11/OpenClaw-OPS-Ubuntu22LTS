@@ -6,6 +6,27 @@ Notable changes to openclaw-ops. Format follows [Keep a Changelog](https://keepa
 
 ---
 
+## [v1.2.0] — 2026-05-19
+
+Docker Compose is now the standard deployment model. The systemd gateway service is removed; Docker Compose (`restart: unless-stopped`) owns the gateway lifecycle. The watchdog timer still runs every 5 minutes via systemd to detect and recover stuck/unhealthy states.
+
+### Added
+- `scripts/install-cli-wrapper.sh` — installs `~/.local/bin/openclaw` wrapper for Docker Compose deployments; routes `gateway restart/start/stop` to `docker compose -C STACK_DIR`; all other subcommands to `docker exec CLI_CONTAINER node dist/index.js`; writes `~/.openclaw/ops-config.sh` with site-specific container names and stack dir (sourced automatically by `lib.sh`)
+- `scripts/lib.sh` — `OPENCLAW_STACK_DIR`, `OPENCLAW_GATEWAY_CONTAINER`, `OPENCLAW_CLI_CONTAINER` constants (defaulting to the production Compose stack); four Docker-aware internal helpers: `_docker_gateway_status()`, `_docker_gateway_health()`, `_docker_compose_restart()`, `_docker_compose_up()`; public `gateway_running()`, `gateway_healthy()`, `is_docker_deployment()`; sources `~/.openclaw/ops-config.sh` when present; `OPENCLAW_DOCKER_STUBS` hook for test environments to override Docker helpers without stubbing the binary
+- `tests/run.sh` — `test_watchdog_restarts_unhealthy_docker_gateway` (33rd test); Docker helper stubs injected via `OPENCLAW_DOCKER_STUBS` in `setup_fake_env()`
+
+### Changed
+- `scripts/watchdog.sh` — `gateway_restart()` calls `_docker_compose_restart()`; `gateway_pid()`/`gateway_process_age()` replaced with `_gateway_container_age_seconds()` (uses `docker inspect StartedAt`; returns 999999 on error so warmup grace is safe in test environments without Docker); warm-up check uses container start time instead of process age; `require_tools` no longer requires `openclaw` (wrapper provides it; watchdog core path is HTTP probe → Docker inspect → Compose restart)
+- `scripts/heal.sh` — local `gateway_running()` override removed (lib.sh Docker-aware version used); `gateway_do_start()` calls `_docker_compose_up()`; `gateway_do_restart()` calls `_docker_compose_restart()`; `require_tools` softened (removes `openclaw` and `pgrep` as hard preflights)
+- `scripts/watchdog-install.sh` — gateway service installation removed; adds a hint to run `install-cli-wrapper.sh` when `openclaw` is not in PATH
+- `docs/architecture.md` — "Service architecture" section updated for Docker Compose gateway; log paths table replaces `journalctl -u openclaw-gateway.service` with `docker logs`; "Restart command" section updated
+- `README.md` — quickstart updated for Docker Compose; prerequisites table adds `docker` and `docker compose v2`; log-viewing section updated
+
+### Removed
+- `systemd/openclaw-gateway.service` — Docker Compose with `restart: unless-stopped` owns gateway lifecycle; the systemd unit is unused in Docker deployments
+
+---
+
 ## [v1.0.7] — 2026-05-19
 
 ### Added
