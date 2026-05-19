@@ -31,6 +31,7 @@ Tested against OpenClaw `2026.5.4`.
 | `scripts/daily-digest.sh` | Incident, activity, watchdog, and cost summary for the last N hours |
 | `scripts/incident-manager.sh` | Shared incident lifecycle helper (sourced by other scripts) |
 | `scripts/remediation-board.sh` | Durable checklist for surfaced remediation items, status transitions, evidence, and next checks |
+| `scripts/log-rotate.sh` | Rotate `~/.openclaw/logs` via logrotate; installed as a daily cron job by `watchdog-install.sh` |
 | `scripts/lib.sh` | Shared helpers: logging, port resolution, state files, sanitization (sourced) |
 
 ## Prerequisites
@@ -44,6 +45,8 @@ Tested against OpenClaw `2026.5.4`.
 | `rg` (ripgrep) | session-search.sh |
 | `systemd` | watchdog-install.sh systemd timer |
 | `notify-send` (optional) | desktop notifications when DISPLAY is set — `sudo apt-get install libnotify-bin` |
+
+`logrotate` is also pre-installed on Ubuntu 22 LTS and is used by `log-rotate.sh` to keep `~/.openclaw/logs` from growing unbounded (installed automatically by `watchdog-install.sh`).
 
 `python3`, `curl`, and `openssl` are pre-installed on Ubuntu 22 LTS. Install `ripgrep` if you want `session-search.sh`:
 ```bash

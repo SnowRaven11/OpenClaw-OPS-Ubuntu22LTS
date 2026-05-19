@@ -31,10 +31,14 @@ if ! systemctl --user status >/dev/null 2>&1 && ! systemctl --user list-units >/
   cron_line="*/5 * * * * bash $WATCHDOG_SCRIPT >> $LOG_DIR/watchdog.log 2>&1"
   marker="# openclaw-watchdog"
   ( crontab -l 2>/dev/null | grep -v "$marker"; echo "$cron_line $marker" ) | crontab -
+  log_rotate_line="@daily bash $SCRIPTS_DIR/log-rotate.sh"
+  ( crontab -l 2>/dev/null | grep -v "log-rotate.sh"; echo "$log_rotate_line" ) | crontab -
   echo ""
   echo "OpenClaw watchdog installed (cron fallback)."
   echo "  Cron entry: $cron_line"
   echo "  Log:        $LOG_DIR/watchdog.log"
+  echo ""
+  echo "Log rotation: @daily cron entry installed (log-rotate.sh)"
   exit 0
 fi
 
@@ -79,8 +83,21 @@ echo "  Timer:        $timer_dst"
 echo "  Log:          $LOG_DIR/watchdog.log"
 echo "  Journal:      journalctl --user -u openclaw-watchdog.service -f"
 echo ""
+# Add daily log rotation via user cron (logrotate runs per-user via --state;
+# no system-level /etc/logrotate.d/ config needed).
+log_rotate_line="@daily bash $SCRIPTS_DIR/log-rotate.sh"
+if command -v crontab &>/dev/null; then
+  ( crontab -l 2>/dev/null | grep -v "log-rotate.sh"; echo "$log_rotate_line" ) | crontab -
+  LOG_ROTATE_MSG="@daily cron entry installed"
+else
+  LOG_ROTATE_MSG="crontab not found — add manually: $log_rotate_line"
+fi
+
 echo "Commands:"
 echo "  Status:    systemctl --user status openclaw-watchdog.timer"
 echo "  Run now:   systemctl --user start openclaw-watchdog.service"
 echo "  Uninstall: bash $SCRIPTS_DIR/watchdog-uninstall.sh"
 echo "  Log:       tail -f $LOG_DIR/watchdog.log"
+echo ""
+echo "Log rotation: $LOG_ROTATE_MSG"
+echo "  Run now:   bash $SCRIPTS_DIR/log-rotate.sh"

@@ -6,6 +6,22 @@ Notable changes to openclaw-ops. Format follows [Keep a Changelog](https://keepa
 
 ---
 
+## [v1.0.7] — 2026-05-19
+
+### Added
+- `scripts/log-rotate.sh` — rotates `~/.openclaw/logs/*.log` and `~/.openclaw/logs/*.jsonl` daily via `logrotate --state` (per-user state file; no system `/etc/logrotate.d/` config required). Keeps 14 days by default. Installed automatically as a `@daily` cron job by `watchdog-install.sh` on both systemd and cron-fallback installs.
+
+### Changed
+- `scripts/watchdog-install.sh` — adds a `@daily` cron entry for `log-rotate.sh` on both the systemd and cron-fallback install paths; prints confirmation in the post-install summary
+- `scripts/heal.sh` — calls `send_notification()` at summary time: "Self-healed N item(s)" when fixes were applied, or "N item(s) still broken — manual intervention needed" when broken items remain. Surfaces self-heal events to journald (and desktop popup if DISPLAY set) on headless servers.
+- `scripts/post-update.sh` — calls `send_notification()` when the post-update sequence completes with warnings, so failures in `check-update.sh --fix` / `heal.sh` / `security-scan.sh` / `openclaw health` surface to the operator without requiring them to tail the terminal.
+- `scripts/check-update.sh` — calls `send_notification()` in `--fix` mode: once on success ("Applied N fix(es) — restart gateway to apply") and once on partial failure ("Applied N, M FAILED — see logs"); also surfaces these events to journald/notify-send on headless deployments
+
+### Fixed
+- `scripts/check-update.sh` — section `[3]` (gateway auth mode): when `openclaw config get gateway.auth.mode` returns an empty or unresolvable value, the result was shown as `good "gateway.auth.mode = ''"` — falsely passing the check. Now warns "Could not determine gateway.auth.mode — check openclaw is responding" instead.
+
+---
+
 ## [v1.0.6] — 2026-05-19
 
 ### Removed

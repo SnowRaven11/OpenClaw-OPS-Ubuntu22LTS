@@ -396,6 +396,13 @@ if [[ ${#FIXED[@]} -eq 0 ]] && [[ ${#BROKEN[@]} -eq 0 ]] && [[ ${#MANUAL[@]} -eq
   echo -e "${GRN}All checks passed — nothing to fix${RST}"
 fi
 
+# Surface actionable outcomes via journald/notify-send so headless servers get paged.
+if [[ ${#BROKEN[@]} -gt 0 ]]; then
+  send_notification "OpenClaw Heal" "${#BROKEN[@]} item(s) still broken — manual intervention needed"
+elif [[ ${#FIXED[@]} -gt 0 ]]; then
+  send_notification "OpenClaw Heal" "Self-healed ${#FIXED[@]} item(s)"
+fi
+
 echo ""
 
 # ── Incident log (JSONL) ──────────────────────────────────────────────────────

@@ -74,6 +74,8 @@ openclaw-ops runs two systemd user units installed by `watchdog-install.sh`:
 | Watchdog journal | `journalctl --user -u openclaw-watchdog.service -f` |
 | All openclaw units | `journalctl --user -t openclaw-watchdog -f` |
 
+Log files in `~/.openclaw/logs/` are rotated daily by `log-rotate.sh`, installed as a `@daily` cron job by `watchdog-install.sh`. It uses `logrotate --state` with a per-user state file so system-level `/etc/logrotate.d/` config is not required. Logs are kept for 14 days by default (override: `OPENCLAW_LOGROTATE_KEEP`). Run manually: `bash scripts/log-rotate.sh`.
+
 ### Restart command
 
 `watchdog.sh` calls `systemctl --user restart openclaw-gateway.service` when the unit exists, so the service manager tracks the new PID. It falls back to `openclaw gateway restart` when the unit is absent (cron fallback installs).

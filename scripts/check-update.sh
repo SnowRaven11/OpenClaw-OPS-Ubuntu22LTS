@@ -271,6 +271,8 @@ if [[ "$AUTH_MODE" == "none" ]]; then
     echo "     openclaw config set gateway.auth.token \"\$(openssl rand -hex 32)\""
     echo "     openclaw config set gateway.auth.mode token"
   fi
+elif [[ "$AUTH_MODE" == "unknown" || -z "$AUTH_MODE" ]]; then
+  warn "Could not determine gateway.auth.mode — check openclaw is responding"
 else
   good "gateway.auth.mode = '$AUTH_MODE'"
 fi
@@ -318,6 +320,7 @@ elif [[ "$FIX_MODE" == "true" ]]; then
     echo ""
     echo -e "Run ${BLD}bash heal.sh${RST} to retry, or apply the fixes manually using the commands shown."
     echo -n "Then restart the gateway: " && restart_hint
+    send_notification "OpenClaw Update Check" "Applied $FIXES_APPLIED fix(es), $FIXES_FAILED FAILED — see logs"
     exit 1
   elif (( FIXES_APPLIED == 0 )); then
     warn "$ISSUES_FOUND issue(s) found, but no fixes were applied (check that --fix code paths covered them)."
@@ -325,6 +328,7 @@ elif [[ "$FIX_MODE" == "true" ]]; then
   else
     echo -e "${GRN}Applied $FIXES_APPLIED fix(es). Restart the gateway to apply:${RST}"
     restart_hint
+    send_notification "OpenClaw Update Check" "Applied $FIXES_APPLIED fix(es) — restart gateway to apply"
   fi
 else
   warn "$ISSUES_FOUND issue(s) found from this version's breaking changes."
