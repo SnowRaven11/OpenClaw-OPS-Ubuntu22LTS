@@ -29,6 +29,7 @@ CODE_INCLUDES=(--include='*.sh' --include='*.py' --include='*.js' --include='*.j
 # Filters out false-positive lines containing common placeholder words.
 # Returns the count of real findings.
 scan_pattern() {
+  # shellcheck disable=SC2034  # label documents the call-site argument order
   local label="$1" pattern="$2"
   shift 2
   local includes=("$@")

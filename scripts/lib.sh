@@ -13,6 +13,7 @@ if [[ -t 1 ]]; then
   BLD='\033[1m'
   RST='\033[0m'
 else
+  # shellcheck disable=SC2034  # used by sourcing scripts
   RED='' GRN='' YLW='' CYN='' BLD='' RST=''
 fi
 

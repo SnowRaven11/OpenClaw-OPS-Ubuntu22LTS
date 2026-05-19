@@ -24,7 +24,6 @@ FIX_MODE=false
 [[ "${1:-}" == "--fix" ]] && FIX_MODE=true
 
 STATE_FILE="$HOME/.openclaw/watchdog-state.json"
-OPENCLAW_JSON="$HOME/.openclaw/openclaw.json"
 APPROVALS_JSON="$HOME/.openclaw/exec-approvals.json"
 
 warn()  { echo -e "${YLW}[!]${RST} $1"; }

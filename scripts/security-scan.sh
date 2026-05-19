@@ -310,7 +310,7 @@ run_credentials() {
   while IFS= read -r -d '' cfg_file; do
     if [[ "$FLAG_INCLUDE_SESSIONS" != "true" ]]; then
       case "$cfg_file" in
-        */sessions/*|*/codex-home/sessions/*|*/codex-home/cache/*|*/codex-home/skills/*|*/agent/harness-auth/codex/*/skills/*|*/tasks/*.sqlite|*/tasks/*.sqlite.*|*/logs/*|*/state/heartbeats/*|*/state/*.log|*/scripts/*.bak*|*/scripts/**/*.bak*|*/skills/*|*/npm/*|*/.omx/state/*|*/.playwright-mcp/*|*/plugin-runtime-deps/*|*/node_modules/*|*/canvas/*|*/agents/_archived/*|*/backups/*|*/qmd/xdg-config/*|*/workspace-state.json|*/models.json)
+        */sessions/*|*/codex-home/cache/*|*/codex-home/skills/*|*/agent/harness-auth/codex/*/skills/*|*/tasks/*.sqlite|*/tasks/*.sqlite.*|*/logs/*|*/state/heartbeats/*|*/state/*.log|*/scripts/*.bak*|*/skills/*|*/npm/*|*/.omx/state/*|*/.playwright-mcp/*|*/plugin-runtime-deps/*|*/node_modules/*|*/canvas/*|*/agents/_archived/*|*/backups/*|*/qmd/xdg-config/*|*/workspace-state.json|*/models.json)
           continue
           ;;
       esac

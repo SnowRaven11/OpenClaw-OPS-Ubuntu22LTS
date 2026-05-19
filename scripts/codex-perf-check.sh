@@ -149,8 +149,6 @@ fi
 echo ""
 echo -e "${BLD}[3] Thinking level (thinkingDefault)${RST}"
 
-VALID_LEVELS=("minimal" "low" "medium" "high" "xhigh" "adaptive")
-
 python3 -c "
 import json, sys
 d = json.load(open(sys.argv[1]))
@@ -196,15 +194,6 @@ log_info "To set per-agent (e.g. atlas to xhigh), edit openclaw.json directly or
 # ── 4. Native Codex Harness ───────────────────────────────────────────────────
 echo ""
 echo -e "${BLD}[4] Native Codex harness${RST}"
-
-CODEX_STATUS="$(python3 -c "
-import json, sys
-d = json.load(open(sys.argv[1]))
-plugin_enabled = d.get('plugins', {}).get('entries', {}).get('codex', {}).get('enabled', False)
-harness = d.get('agents', {}).get('defaults', {}).get('embeddedHarness', {})
-runtime = harness.get('runtime', '') if isinstance(harness, dict) else ''
-print(f'plugin={plugin_enabled} runtime={runtime}')
-" "$CONFIG" 2>/dev/null || echo "error")"
 
 PLUGIN_ENABLED="$(python3 -c "
 import json, sys

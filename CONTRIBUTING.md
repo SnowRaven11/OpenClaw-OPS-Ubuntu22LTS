@@ -49,6 +49,7 @@ If you're submitting a PR for the pattern:
 ## PR checklist
 
 - [ ] `bash tests/run.sh` passes locally
+- [ ] `shellcheck --severity=warning scripts/*.sh` passes locally
 - [ ] No personal config or secrets in the diff
 - [ ] If the change touches recovery/monitoring, `docs/architecture.md` conventions are respected
 - [ ] If the change adds a new behavior, `docs/troubleshooting.md` and/or `README.md` are updated
