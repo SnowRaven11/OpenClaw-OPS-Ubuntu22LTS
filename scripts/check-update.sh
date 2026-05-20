@@ -34,7 +34,7 @@ fixed() { echo -e "${GRN}[FIXED]${RST} $1"; }
 
 # Print the gateway restart command for Docker Compose deployments.
 restart_hint() {
-  echo "  docker compose -C ${OPENCLAW_STACK_DIR} restart openclaw-gateway"
+  echo "  docker compose --project-directory ${OPENCLAW_STACK_DIR} restart openclaw-gateway"
   echo "  (or: openclaw gateway restart  — if the host CLI wrapper is installed)"
 }
 

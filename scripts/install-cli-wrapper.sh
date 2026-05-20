@@ -60,11 +60,11 @@ case "\${1:-}" in
   gateway)
     case "\${2:-}" in
       restart)
-        exec docker compose -C "\$_STACK_DIR" restart openclaw-gateway ;;
+        exec docker compose --project-directory "\$_STACK_DIR" restart openclaw-gateway ;;
       start)
-        exec docker compose -C "\$_STACK_DIR" up -d openclaw-gateway ;;
+        exec docker compose --project-directory "\$_STACK_DIR" up -d openclaw-gateway ;;
       stop)
-        exec docker compose -C "\$_STACK_DIR" stop openclaw-gateway ;;
+        exec docker compose --project-directory "\$_STACK_DIR" stop openclaw-gateway ;;
       *)
         if [[ -t 0 && -t 1 ]]; then
           exec docker exec -it "\$_CLI_CONTAINER" node dist/index.js "\$@"

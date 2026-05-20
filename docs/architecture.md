@@ -81,7 +81,7 @@ Log files in `~/.openclaw/logs/` are rotated daily by `log-rotate.sh`, installed
 
 ### Restart command
 
-`watchdog.sh` calls `docker compose -C $OPENCLAW_STACK_DIR restart openclaw-gateway` via `_docker_compose_restart()`. Docker Compose owns the gateway lifecycle; the watchdog forces a restart when the HTTP probe fails beyond the `REQUIRED_HEALTH_FAILURES` threshold. The gateway service is no longer managed by a systemd user unit — `restart: unless-stopped` in the Compose file handles crash recovery automatically.
+`watchdog.sh` calls `docker compose --project-directory $OPENCLAW_STACK_DIR restart openclaw-gateway` via `_docker_compose_restart()`. Docker Compose owns the gateway lifecycle; the watchdog forces a restart when the HTTP probe fails beyond the `REQUIRED_HEALTH_FAILURES` threshold. The gateway service is no longer managed by a systemd user unit — `restart: unless-stopped` in the Compose file handles crash recovery automatically.
 
 ### Notifications
 

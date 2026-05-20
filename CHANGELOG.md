@@ -6,6 +6,26 @@ Notable changes to openclaw-ops. Format follows [Keep a Changelog](https://keepa
 
 ---
 
+## [v1.2.5] — 2026-05-20
+
+### Fixed
+- `scripts/lib.sh`, `scripts/install-cli-wrapper.sh`, `scripts/heal.sh`, `scripts/check-update.sh` — Docker Compose helpers and operator hints used `docker compose -C ${OPENCLAW_STACK_DIR}` (8 call sites), but Compose v2 has **no** `-C` shorthand (`-C` is `git` syntax). Every real gateway lifecycle call from these scripts failed with `unknown shorthand flag: 'C'` on the live install. Switched to the documented `docker compose --project-directory ${OPENCLAW_STACK_DIR}` form. Tests stub `_docker_compose_*` directly so the bad flag was never exercised in CI; added `test_docker_compose_helpers_use_project_directory_flag` to catch any regression in the real implementation
+- `scripts/heal.sh` step `[5]` — rapid-fire loop detector called `json.load(open(session_file))` on `*.jsonl` session transcripts, which always raises `JSONDecodeError` on line 2 of any non-trivial session. The `try: except: pass` block swallowed the error, so the loop detector never fired against a real session. Rewritten to parse JSONL line-by-line and compare assistant-text content windows; added `test_heal_loop_check_parses_jsonl_line_by_line` static guard
+- `scripts/heal.sh` — `require_tools python3 curl openssl` did not include `openclaw`, but every config-fix step (`gateway.auth.mode`, `tools.exec.security`, `tools.exec.strictInlineEval`, allowlist patching, cron re-enable, `openclaw doctor`) calls the CLI. Without the host CLI wrapper installed on Docker deployments, these silently fell through to `|| echo "unknown"` patterns and the script reported misleading `[broken]` status. Now requires `openclaw` and exits with a Docker-aware install hint when missing
+- `scripts/health-check.sh` — auto-generated default targets file contained `process|gateway|openclaw.*gateway|300`, which always fails on Docker Compose installs (the gateway runs inside a container; the host `pgrep` cannot see it). On Docker deployments the script now generates a `container|gateway|${OPENCLAW_GATEWAY_CONTAINER}|300` target instead, and the URL line uses `/healthz` (the actual gateway endpoint) for consistency with `watchdog.sh`
+
+### Added
+- `scripts/health-check.sh` — new `container|<name>|<container-name>|<min-uptime-seconds>` target kind. Checks Docker container state, uptime, and the container's own healthcheck status. Reports failures when the container is not running, was started inside the warmup window, or its healthcheck reports `unhealthy`. Auto-generated default file picks this kind on Docker Compose deployments (`is_docker_deployment` true); falls back to the legacy `process|...` line otherwise
+- `scripts/lib.sh` — generic `_docker_container_status`, `_docker_container_health`, and `_docker_container_started_at` helpers that take a container name argument (the gateway-specific helpers hard-coded `${OPENCLAW_GATEWAY_CONTAINER}`). Used by `health-check.sh`; tests stub them through `OPENCLAW_DOCKER_STUBS`
+- `scripts/lib.sh` `require_tools` — when `openclaw` is the missing tool and a Docker Compose deployment is detected (the CLI container exists), the error hint now points at `bash scripts/install-cli-wrapper.sh` instead of the native installer URL. Falls back to the installer URL on native installs or when Docker is unavailable
+- `tests/run.sh` — five new tests: `test_heal_loop_check_parses_jsonl_line_by_line`, `test_docker_compose_helpers_use_project_directory_flag`, `test_health_check_container_target_passes_when_running_and_warm`, `test_health_check_container_target_reports_when_not_running`, `test_health_check_container_target_reports_when_unhealthy`. Test count: 32 → 37
+
+### Changed
+- `README.md` — quickstart `docker compose -C /srv/openclaw/openclaw ps` corrected to `--project-directory`; "Tested against OpenClaw 2026.5.4" bumped to 2026.5.12
+- `docs/architecture.md` — restart-command paragraph updated to `--project-directory` form
+
+---
+
 ## [v1.2.3] — 2026-05-19
 
 ### Fixed

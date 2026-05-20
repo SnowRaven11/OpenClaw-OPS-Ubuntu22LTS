@@ -15,7 +15,11 @@ RESTARTED=false
 STATE_FILE="$HOME/.openclaw/watchdog-state.json"
 
 # ── Preflight: check required tools ──────────────────────────────────────────
-require_tools python3 curl openssl || exit 1
+# openclaw is required: many steps read/set config via `openclaw config`,
+# manage approvals, enable crons, and run `openclaw doctor`. Without the host
+# CLI wrapper (install-cli-wrapper.sh) installed on Docker Compose deployments,
+# those calls silently fail and the script reports misleading "fixed/broken".
+require_tools python3 curl openssl openclaw || exit 1
 mkdir -p "$(dirname "$STATE_FILE")"
 
 # Override log helpers to also track in arrays
@@ -127,7 +131,7 @@ if ! gateway_running; then
         log_manual "Gateway container running but health check not yet passing — check: docker logs ${OPENCLAW_GATEWAY_CONTAINER}"
       fi
     else
-      log_broken "Gateway failed to start — try: docker compose -C ${OPENCLAW_STACK_DIR} up -d openclaw-gateway"
+      log_broken "Gateway failed to start — try: docker compose --project-directory ${OPENCLAW_STACK_DIR} up -d openclaw-gateway"
     fi
   else
     log_broken "Gateway start command failed"
@@ -302,21 +306,50 @@ if [[ -d "$AGENTS_DIR" ]]; then
       STUCK_COUNT=$((STUCK_COUNT + 1))
     done < <(find "$sessions_dir" -name "*.jsonl" -size +10M 2>/dev/null)
 
-    # Check for rapid-fire loop (same content 10+ times)
+    # Check for rapid-fire loop (same content 10+ times).
+    # Session files are JSONL (one record per line) — json.load on the whole
+    # file always raises and silently returns no match. Parse line-by-line and
+    # compare assistant text content from the last 20 message records.
     while IFS= read -r -d '' f; do
       [[ -f "$f" ]] || continue
       LOOP=$(python3 -c "
 import json, sys
+from collections import Counter
 try:
-    data = json.load(open(sys.argv[1]))
-    messages = data if isinstance(data, list) else data.get('messages', [])
-    contents = [str(m.get('content', '')) for m in messages[-20:] if str(m.get('content', '')) not in ('', '[]')]
+    records = []
+    with open(sys.argv[1], 'r', encoding='utf-8', errors='replace') as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                records.append(json.loads(line))
+            except Exception:
+                continue
+    contents = []
+    for record in records:
+        if record.get('type') != 'message':
+            continue
+        message = record.get('message') or {}
+        content = message.get('content')
+        if isinstance(content, list):
+            parts = [item.get('text', '') for item in content
+                     if isinstance(item, dict) and item.get('type') == 'text']
+            text = '\n'.join(p for p in parts if p)
+        elif isinstance(content, str):
+            text = content
+        else:
+            text = ''
+        text = text.strip()
+        if text:
+            contents.append(text)
+    contents = contents[-20:]
     if len(contents) >= 10:
-        from collections import Counter
         top = Counter(contents).most_common(1)
         if top and top[0][1] >= 10:
             print('loop')
-except: pass
+except Exception:
+    pass
 " "$f" 2>/dev/null || echo "")
       if [[ "$LOOP" == "loop" ]]; then
         log_info "Rapid-fire loop detected for agent $agent — resetting session pointer"
@@ -354,7 +387,7 @@ if [[ ${#FIXED[@]} -gt 0 ]] && [[ "$RESTARTED" == "false" ]]; then
   log_info "Restarting gateway to apply fixes"
   gateway_do_restart && \
     log_fixed "Gateway restarted" || \
-    log_broken "Gateway restart failed — try: docker compose -C ${OPENCLAW_STACK_DIR} restart openclaw-gateway"
+    log_broken "Gateway restart failed — try: docker compose --project-directory ${OPENCLAW_STACK_DIR} restart openclaw-gateway"
   RESTARTED=true
 elif [[ "$RESTARTED" == "true" ]]; then
   log_info "Gateway already restarted"

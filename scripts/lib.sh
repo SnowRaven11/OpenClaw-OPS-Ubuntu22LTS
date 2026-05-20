@@ -87,8 +87,18 @@ require_tools() {
     fi
   done
   if [[ ${#missing[@]} -gt 0 ]]; then
-    echo "Error: missing required tools: ${missing[*]}"
-    echo "Install openclaw: curl -fsSL https://openclaw.ai/install.sh | bash"
+    echo "Error: missing required tools: ${missing[*]}" >&2
+    # If `openclaw` is missing but Docker Compose deployment is detected,
+    # point at the host CLI wrapper instead of the native installer URL.
+    if [[ " ${missing[*]} " == *' openclaw '* ]] && \
+       command -v docker >/dev/null 2>&1 && \
+       docker inspect "${OPENCLAW_CLI_CONTAINER:-openclaw-openclaw-cli-1}" >/dev/null 2>&1; then
+      echo "  → Docker Compose detected — install the host CLI wrapper:" >&2
+      echo "      bash scripts/install-cli-wrapper.sh" >&2
+      echo "      (then add ~/.local/bin to your PATH)" >&2
+    else
+      echo "  → Install openclaw: curl -fsSL https://openclaw.ai/install.sh | bash" >&2
+    fi
     return 1
   fi
 }
@@ -275,22 +285,43 @@ is_systemd_unit_active() {
 # ── Docker gateway helpers ──────────────────────────────────────────────────
 # Thin wrappers around docker commands so tests can override them by sourcing
 # OPENCLAW_DOCKER_STUBS without stubbing the docker binary itself.
-# Requires Docker Compose v2.23+ (docker compose -C, not docker-compose).
+# Requires Docker Compose v2 (docker compose, not docker-compose).
 
 _docker_gateway_status() {
-  docker inspect "${OPENCLAW_GATEWAY_CONTAINER}"     --format '{{.State.Status}}' 2>/dev/null || echo "missing"
+  docker inspect "${OPENCLAW_GATEWAY_CONTAINER}" \
+    --format '{{.State.Status}}' 2>/dev/null || echo "missing"
 }
 
 _docker_gateway_health() {
-  docker inspect "${OPENCLAW_GATEWAY_CONTAINER}"     --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}'     2>/dev/null || echo "none"
+  docker inspect "${OPENCLAW_GATEWAY_CONTAINER}" \
+    --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' \
+    2>/dev/null || echo "none"
 }
 
 _docker_compose_restart() {
-  docker compose -C "${OPENCLAW_STACK_DIR}" restart openclaw-gateway
+  docker compose --project-directory "${OPENCLAW_STACK_DIR}" restart openclaw-gateway
 }
 
 _docker_compose_up() {
-  docker compose -C "${OPENCLAW_STACK_DIR}" up -d openclaw-gateway
+  docker compose --project-directory "${OPENCLAW_STACK_DIR}" up -d openclaw-gateway
+}
+
+# Generic per-container helpers used by health-check.sh container targets.
+# Defined separately from the gateway-specific helpers above so callers can
+# query arbitrary containers (e.g. lofty-mcp-http, openclaw-cli-1) without
+# duplicating docker inspect invocations across scripts.
+_docker_container_status() {
+  docker inspect "$1" --format '{{.State.Status}}' 2>/dev/null || echo "missing"
+}
+
+_docker_container_health() {
+  docker inspect "$1" \
+    --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' \
+    2>/dev/null || echo "none"
+}
+
+_docker_container_started_at() {
+  docker inspect "$1" --format '{{.State.StartedAt}}' 2>/dev/null || true
 }
 
 # Allow test environments to override the four helpers above without stubbing docker.

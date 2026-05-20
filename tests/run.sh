@@ -249,6 +249,21 @@ _docker_compose_up() {
 ' >>"$OPENCLAW_CALL_LOG"
   return "${DOCKER_UP_RC:-0}"
 }
+# Generic per-container stubs for health-check.sh container targets.
+# Default to running/healthy/2-hours-ago; override via env vars per test.
+_docker_container_status()     { echo "${DOCKER_CONTAINER_STATUS:-running}"; }
+_docker_container_health()     { echo "${DOCKER_CONTAINER_HEALTH:-healthy}"; }
+_docker_container_started_at() {
+  if [[ -n "${DOCKER_CONTAINER_STARTED_AT:-}" ]]; then
+    echo "$DOCKER_CONTAINER_STARTED_AT"
+  else
+    python3 -c "
+from datetime import datetime, timezone, timedelta
+ago = datetime.now(timezone.utc) - timedelta(hours=2)
+print(ago.strftime('%Y-%m-%dT%H:%M:%S.000000000Z'))
+"
+  fi
+}
 EOF
   export OPENCLAW_DOCKER_STUBS="$TEST_ROOT/docker-stubs.sh"
   export OPENCLAW_STACK_DIR="$TEST_ROOT/fake-stack"
@@ -427,6 +442,39 @@ test_heal_incident_logging_no_longer_embeds_shell_generated_python() {
   grep -q "read_lines(sys.argv\\[5\\])" "$heal" || fail "heal incident logging should read manual items from a file"
 }
 
+test_heal_loop_check_parses_jsonl_line_by_line() {
+  # Earlier versions of the rapid-fire loop check used json.load(open(...)) on
+  # session files, which always raises on JSONL (one JSON object per line). The
+  # except clause swallowed the error, so the detector never fired against a
+  # real session. The fix uses line-by-line parsing. Verify both that the new
+  # loader is present AND that the old `messages = data if isinstance(data, list)`
+  # shape (unique to the buggy loop check) is gone.
+  local heal="$ROOT_DIR/scripts/heal.sh"
+  grep -q "json.loads(line)" "$heal" || fail "heal loop check must parse JSONL line-by-line via json.loads"
+  if grep -qE "messages = data if isinstance\(data, list\)" "$heal"; then
+    fail "heal loop check still treats session file as a single JSON object (broken on JSONL)"
+  fi
+}
+
+test_docker_compose_helpers_use_project_directory_flag() {
+  # docker compose has no -C flag (that's git syntax); valid form is
+  # --project-directory. The bug shipped in v1.2.0 and survived tests because
+  # _docker_compose_* helpers are stubbed in setup_fake_env, so the real
+  # invocation was never exercised. Verify the real implementation uses the
+  # correct flag in every place that runs docker compose against the stack dir.
+  local files=(
+    "$ROOT_DIR/scripts/lib.sh"
+    "$ROOT_DIR/scripts/install-cli-wrapper.sh"
+    "$ROOT_DIR/scripts/heal.sh"
+    "$ROOT_DIR/scripts/check-update.sh"
+  )
+  for f in "${files[@]}"; do
+    if grep -E 'docker compose -C\b' "$f" >/dev/null 2>&1; then
+      fail "$f uses invalid 'docker compose -C' flag (use --project-directory)"
+    fi
+  done
+}
+
 test_security_scan_detects_nested_files_and_permissions() {
   setup_fake_env
   trap teardown_fake_env RETURN
@@ -577,6 +625,64 @@ EOF
   local output
   output="$(bash "$ROOT_DIR/scripts/health-check.sh" --verbose 2>&1)"
   assert_contains "$output" "All health checks passed"
+}
+
+test_health_check_container_target_passes_when_running_and_warm() {
+  setup_fake_env
+  trap teardown_fake_env RETURN
+  # Env vars set by sibling tests leak across the shared shell, so each
+  # container test explicitly resets the docker-stub knobs it cares about.
+  unset DOCKER_CONTAINER_STATUS DOCKER_CONTAINER_HEALTH DOCKER_CONTAINER_STARTED_AT
+
+  cat >"$HOME/.openclaw/health-targets.conf" <<'EOF'
+container|gateway|fake-openclaw-gateway-1|300
+EOF
+
+  local output
+  output="$(bash "$ROOT_DIR/scripts/health-check.sh" --verbose 2>&1)"
+  assert_contains "$output" "OK: container:gateway"
+}
+
+test_health_check_container_target_reports_when_not_running() {
+  setup_fake_env
+  trap teardown_fake_env RETURN
+  unset DOCKER_CONTAINER_STATUS DOCKER_CONTAINER_HEALTH DOCKER_CONTAINER_STARTED_AT
+
+  export DOCKER_CONTAINER_STATUS="exited"
+
+  cat >"$HOME/.openclaw/health-targets.conf" <<'EOF'
+container|gateway|fake-openclaw-gateway-1|300
+EOF
+
+  local output rc
+  set +e
+  output="$(bash "$ROOT_DIR/scripts/health-check.sh" 2>&1)"
+  rc=$?
+  set -e
+
+  [[ "$rc" -ne 0 ]] || fail "expected non-zero exit when container is not running, got: $rc"
+  assert_contains "$output" "container:gateway not running (status: exited)"
+}
+
+test_health_check_container_target_reports_when_unhealthy() {
+  setup_fake_env
+  trap teardown_fake_env RETURN
+  unset DOCKER_CONTAINER_STATUS DOCKER_CONTAINER_HEALTH DOCKER_CONTAINER_STARTED_AT
+
+  export DOCKER_CONTAINER_HEALTH="unhealthy"
+
+  cat >"$HOME/.openclaw/health-targets.conf" <<'EOF'
+container|gateway|fake-openclaw-gateway-1|300
+EOF
+
+  local output rc
+  set +e
+  output="$(bash "$ROOT_DIR/scripts/health-check.sh" 2>&1)"
+  rc=$?
+  set -e
+
+  [[ "$rc" -ne 0 ]] || fail "expected non-zero exit when container is unhealthy, got: $rc"
+  assert_contains "$output" "container:gateway docker healthcheck status: unhealthy"
 }
 
 
@@ -1617,9 +1723,14 @@ run_test() {
 run_test test_version_change_survives_watchdog_for_check_update
 run_test test_lib_removes_generic_eval_exec_helpers
 run_test test_heal_incident_logging_no_longer_embeds_shell_generated_python
+run_test test_heal_loop_check_parses_jsonl_line_by_line
+run_test test_docker_compose_helpers_use_project_directory_flag
 run_test test_security_scan_detects_nested_files_and_permissions
 run_test test_get_openclaw_version_normalizes_missing_v_prefix
 run_test test_health_check_passes_for_valid_targets
+run_test test_health_check_container_target_passes_when_running_and_warm
+run_test test_health_check_container_target_reports_when_not_running
+run_test test_health_check_container_target_reports_when_unhealthy
 run_test test_security_scan_redacts_secret_values
 run_test test_lib_time_and_sanitization_helpers
 run_test test_incident_lifecycle_and_dedup

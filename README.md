@@ -2,7 +2,7 @@
 
 OpenClaw gateway operations skill for agent environments. Covers health checks, repair workflows, continuous monitoring, session analysis, update-change detection, and security review for a local or self-hosted OpenClaw install.
 
-Tested against OpenClaw `2026.5.4`.
+Tested against OpenClaw `2026.5.12`.
 
 ## What it does
 
@@ -68,7 +68,7 @@ openclaw --version
 
 ```bash
 # 1. Verify Docker Compose gateway is running
-docker compose -C /srv/openclaw/openclaw ps
+docker compose --project-directory /srv/openclaw/openclaw ps
 
 # 2. Install host CLI wrapper (routes openclaw commands to Docker containers)
 bash scripts/install-cli-wrapper.sh
