@@ -35,6 +35,8 @@ Tested against OpenClaw `2026.5.12`.
 | `scripts/log-rotate.sh` | Rotate `~/.openclaw/logs` via logrotate; installed as a daily cron job by `watchdog-install.sh` |
 | `scripts/lib.sh` | Shared helpers: logging, port resolution, state files, sanitization (sourced) |
 
+For a per-script reference — purpose, when to use, usage, output, gotchas — see [`docs/scripts-reference.md`](docs/scripts-reference.md).
+
 ## Prerequisites
 
 | Tool | Required for |
