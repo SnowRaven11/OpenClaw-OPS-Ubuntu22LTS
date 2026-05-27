@@ -224,13 +224,24 @@ tail -f ~/.openclaw/logs/watchdog.log
 - `codex-perf-check.sh` requires v2026.4.x or later — the settings it checks don't exist in earlier releases.
 - `session-purge.sh` excludes `*.trajectory.jsonl` files from orphan detection using `${base%%.*}` UUID extraction to avoid false positives against Codex rollout logs.
 
+## Discord notifications
+
+When a Discord channel is connected in OpenClaw, ops scripts can route alerts to specific Discord channels. Channel IDs are stored in a per-user file so anyone can clone the repo without touching script code:
+
+```bash
+cp config/discord-channels.example.json ~/.openclaw/discord-channels.json
+# Edit ~/.openclaw/discord-channels.json and fill in your channel IDs
+```
+
+Notifications are sent via `openclaw message send --channel discord`. If the gateway is not running, sends are skipped silently. If the config file is absent or a key is missing, that send is a no-op.
+
 ## Running tests
 
 ```bash
 bash tests/run.sh
 ```
 
-39 tests, 0 shellcheck warnings.
+41 tests, 0 shellcheck warnings.
 
 ## Open-Source Release Checklist
 

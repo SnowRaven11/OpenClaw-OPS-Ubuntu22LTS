@@ -6,6 +6,30 @@ Notable changes to openclaw-ops. Format follows [Keep a Changelog](https://keepa
 
 ---
 
+## [v1.2.7] — 2026-05-27
+
+### Added
+- Discord notifications for all 9 existing `send_notification()` call sites across 6 scripts. Requires the Discord channel in OpenClaw to be connected; routes messages through `openclaw message send --channel discord`. No new alert conditions — existing events only
+- `scripts/lib.sh` — three new helpers: `_discord_channel` (looks up a channel ID by key from `~/.openclaw/discord-channels.json`), `_discord_ansi` (wraps text in a Discord ANSI color block), `_discord_send` (resolves the channel ID and sends via the gateway; skips silently when the config file is absent, the key is missing, or the gateway is not running)
+- `config/discord-channels.example.json` — repo-shipped template for the per-user channel ID file; copy to `~/.openclaw/discord-channels.json` and fill in your server's IDs. Channel IDs never live in the repo
+- `scripts/install-cli-wrapper.sh` — prints a one-time setup hint pointing at the example file when `~/.openclaw/discord-channels.json` does not exist
+- `tests/run.sh` — two new tests: `test_discord_send_skips_when_key_missing_from_config` (config exists but key absent → openclaw not called) and `test_discord_send_skips_when_gateway_not_running` (gateway stopped → openclaw not called). Test count: 39 → 41
+
+### Routing
+| Event | Channel key |
+|-------|-------------|
+| Gateway down / escalation | `error_alerts` |
+| Gateway recovered (state change only) | `heartbeat` |
+| Heal: items still broken | `error_alerts` |
+| Heal: items self-fixed | `audit_trail` |
+| Update check: fixes failed | `error_alerts` |
+| Update check: fixes applied OK | `oc_updates` |
+| Post-update: completed with warnings | `error_alerts` |
+| Daily digest generated | `live_logs` |
+| Session monitor: critical incident | `error_alerts` |
+
+---
+
 ## [v1.2.6] — 2026-05-27
 
 ### Fixed

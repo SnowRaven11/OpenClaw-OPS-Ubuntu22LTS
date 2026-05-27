@@ -122,6 +122,7 @@ if [[ "$FAILED" -eq 0 ]]; then
   good "Post-update sequence completed"
 else
   send_notification "OpenClaw Post-Update" "Post-update sequence completed with warnings — check logs"
+  _discord_send error_alerts "$(_discord_ansi '1;33m' 'Post-update: completed with warnings — check logs')"
   log_warn "Post-update sequence completed with warnings"
 fi
 exit "$FAILED"

@@ -1,0 +1,8 @@
+{
+  "_comment": "Copy to ~/.openclaw/discord-channels.json and fill in your Discord channel IDs. Scripts read channel IDs from this file by key name — no channel IDs ever live in the repo.",
+  "error_alerts": "",
+  "heartbeat":    "",
+  "audit_trail":  "",
+  "oc_updates":   "",
+  "live_logs":    ""
+}

@@ -434,6 +434,7 @@ if [[ -s "$deduped_tmp" ]]; then
       openclaw system event --mode now --text "$title" >/dev/null 2>&1 || true
       # OS-level alert: journald (always on Linux) + desktop popup when available
       send_notification "OpenClaw Session Monitor" "$title"
+      _discord_send error_alerts "$(_discord_ansi '1;31m' "Session monitor: $title")"
     fi
   done <"$deduped_tmp"
 fi

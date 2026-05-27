@@ -1772,6 +1772,43 @@ STUB
   assert_not_contains "$output" "tools.exec.security"
 }
 
+test_discord_send_skips_when_key_missing_from_config() {
+  setup_fake_env
+  trap teardown_fake_env RETURN
+
+  printf '{"error_alerts":"1234567890"}\n' >"$HOME/.openclaw/discord-channels.json"
+  local call_log="$TEST_ROOT/openclaw-calls.log"
+  export OPENCLAW_CALL_LOG="$call_log"
+
+  bash -c '
+    source "'"$ROOT_DIR"'/scripts/lib.sh"
+    _discord_send missing_key "should not be sent"
+  ' 2>/dev/null || true
+
+  if [[ -f "$call_log" ]]; then
+    assert_not_contains "$(cat "$call_log")" "message"
+  fi
+}
+
+test_discord_send_skips_when_gateway_not_running() {
+  setup_fake_env
+  trap teardown_fake_env RETURN
+
+  printf '{"error_alerts":"1474917133527023707"}\n' >"$HOME/.openclaw/discord-channels.json"
+  local call_log="$TEST_ROOT/openclaw-calls.log"
+  export OPENCLAW_CALL_LOG="$call_log"
+  export DOCKER_GATEWAY_STATUS=stopped
+
+  bash -c '
+    source "'"$ROOT_DIR"'/scripts/lib.sh"
+    _discord_send error_alerts "test message"
+  ' 2>/dev/null || true
+
+  if [[ -f "$call_log" ]]; then
+    assert_not_contains "$(cat "$call_log")" "message"
+  fi
+}
+
 run_test() {
   local name="$1"
   printf 'Running %s\n' "$name"
@@ -1817,4 +1854,6 @@ run_test test_workspace_auto_commit_commits_dirty_repo_and_audit_reports_coverag
 run_test test_workspace_git_audit_cron_matching_is_per_job_and_strict_controls_exit
 run_test test_daily_digest_summarizes_incidents_activity_and_watchdog
 run_test test_watchdog_restarts_unhealthy_docker_gateway
+run_test test_discord_send_skips_when_key_missing_from_config
+run_test test_discord_send_skips_when_gateway_not_running
 printf 'All openclaw-ops tests passed\n'

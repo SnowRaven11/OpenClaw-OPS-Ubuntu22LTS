@@ -339,6 +339,7 @@ digest="$(printf '%s\n' "$digest" | sanitize_sensitive)"
 if [[ "$SEND_NOTIFY" -eq 1 && -n "$digest" ]]; then
   summary="$(printf '%s\n' "$digest" | head -n 3 | tr '\n' ' ')"
   send_notification "OpenClaw Daily Digest" "$summary"
+  _discord_send live_logs "$(_discord_ansi '1;36m' 'Daily digest ready — check logs for full report')"
 fi
 
 printf '%s\n' "$digest"

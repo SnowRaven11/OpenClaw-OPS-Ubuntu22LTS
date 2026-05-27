@@ -358,3 +358,40 @@ send_notification() {
     notify-send --urgency=critical "$title" "$body" 2>/dev/null || true
   fi
 }
+
+# ── Discord notifications ───────────────────────────────────────────────────
+# Channel IDs are stored in ~/.openclaw/discord-channels.json (per-user, not
+# in the repo). Copy config/discord-channels.example.json to that path and
+# fill in your server's channel IDs. If the file is absent all calls are no-ops.
+
+_discord_channel() {
+  local key="${1:-}"
+  local cfg="$HOME/.openclaw/discord-channels.json"
+  [[ -f "$cfg" ]] || { echo ""; return 0; }
+  python3 -c "
+import json, sys
+d = json.load(open(sys.argv[1]))
+print(d.get(sys.argv[2], ''))
+" "$cfg" "$key" 2>/dev/null || true
+}
+
+_discord_ansi() {
+  local color="$1" text="$2"
+  # shellcheck disable=SC2059
+  printf '```ansi\n\033[%sm%s\033[0m\n```' "$color" "$text"
+}
+
+_discord_send() {
+  local channel_key="${1:-}"
+  local message="${2:-}"
+  [[ -z "$channel_key" ]] && return 0
+  local channel_id
+  channel_id="$(_discord_channel "$channel_key")"
+  [[ -z "$channel_id" ]] && return 0
+  # Skip if the gateway is not running — openclaw message send routes through
+  # the gateway, so notifying about a down gateway would itself fail.
+  gateway_running || return 0
+  openclaw message send --channel discord \
+    --target "$channel_id" \
+    --message "$message" 2>/dev/null || true
+}

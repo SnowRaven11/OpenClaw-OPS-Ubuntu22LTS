@@ -93,3 +93,12 @@ fi
 
 echo ""
 echo "Done. Test with: openclaw --version"
+
+# Discord notification setup hint
+DISCORD_CFG="$HOME/.openclaw/discord-channels.json"
+if [[ ! -f "$DISCORD_CFG" ]]; then
+  echo ""
+  echo "Optional: Discord notifications"
+  echo "  Copy config/discord-channels.example.json to $DISCORD_CFG"
+  echo "  and fill in your server's channel IDs to enable Discord alerts."
+fi
