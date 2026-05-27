@@ -235,6 +235,20 @@ cp config/discord-channels.example.json ~/.openclaw/discord-channels.json
 
 Notifications are sent via `openclaw message send --channel discord`. If the gateway is not running, sends are skipped silently. If the config file is absent or a key is missing, that send is a no-op.
 
+## Version history
+
+| Version | Key change |
+|---------|-----------|
+| v1.0.1–v1.0.7 | Ubuntu 22 LTS redesign: systemd units, `send_notification`, log-rotate; macOS/Windows support removed |
+| v1.2.0 | Docker Compose deployment: lib.sh Docker helpers, `install-cli-wrapper.sh`, watchdog uses `docker inspect` / `compose restart` |
+| v1.2.1 | GAP fixes: `/health` → `/healthz` probe, codex-perf-check/check-update gateway restart stubs, SKILL.md docker equivalents |
+| v1.2.2 | GAP improvements: TTY-aware `-i`/`-it` in wrapper, `gateway_restart &` → foreground + `sleep 20`, heal.sh polls `gateway_healthy()` for 30s |
+| v1.2.3 | Live-install GAP: heal.sh `*.json` → `*.jsonl` session globs, session-purge trajectory UUID fix, session-monitor excludes `*.trajectory.jsonl` |
+| v1.2.5 | `docker compose -C` → `--project-directory` (8 sites were broken at runtime), heal.sh loop check parses JSONL line-by-line, health-check.sh gains `container` target kind with Docker-aware defaults, +5 tests (37) |
+| v1.2.6 | v2026.5+ GAP: version-gate removed `tools.exec.*` config paths in heal.sh and check-update.sh; fix snapshot fields (`maxConcurrent`, `model.primary`); update cli-reference.md, +2 tests (39) |
+| v1.2.7 | Discord notifications: 9 existing `send_notification` call sites routed to Discord via `_discord_send`; per-user `~/.openclaw/discord-channels.json`; ANSI color blocks; `config/discord-channels.example.json` shipped in repo; +2 tests (41) |
+| v1.2.8 | Discord message style: only the alert label is colored; verbose details render in default channel color. `_discord_ansi` accepts optional `detail` argument; all 9 call sites updated |
+
 ## Running tests
 
 ```bash
