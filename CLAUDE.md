@@ -1,0 +1,98 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+```bash
+# Run all tests (41 tests, should take ~30s)
+bash tests/run.sh
+
+# Lint all scripts (must pass with 0 warnings)
+shellcheck --severity=warning scripts/*.sh
+
+# Run a single named test function directly
+bash -c 'source tests/run.sh 2>/dev/null; test_<name>'
+
+# One-shot heal pass (fix approvals, auth mode, cron state)
+bash scripts/heal.sh
+
+# Post-update triage (run after every OpenClaw upgrade)
+bash scripts/check-update.sh        # report only
+bash scripts/check-update.sh --fix  # report + auto-fix
+
+# Smoke test Discord notifications
+bash -c 'source scripts/lib.sh; _discord_send audit_trail "$(_discord_ansi "1;32m" "label" "detail")"'
+```
+
+## Deployment model
+
+The gateway runs under **Docker Compose**, not as a native process. `lib.sh` is sourced by all scripts and reads `~/.openclaw/ops-config.sh` (written by `install-cli-wrapper.sh`) to pick up:
+
+```
+OPENCLAW_STACK_DIR          default: /srv/openclaw/openclaw
+OPENCLAW_GATEWAY_CONTAINER  default: openclaw-openclaw-gateway-1
+OPENCLAW_CLI_CONTAINER      default: openclaw-openclaw-cli-1
+```
+
+All gateway lifecycle calls go through lib.sh helpers — never bare `docker` or `systemctl`:
+- `_docker_compose_restart` / `_docker_compose_up` — Compose lifecycle
+- `_docker_gateway_status` / `_docker_gateway_health` — state probes
+- `gateway_running` / `gateway_healthy` — boolean wrappers used in conditionals
+
+**`docker compose -C` is wrong.** Always `docker compose --project-directory $OPENCLAW_STACK_DIR`.
+
+## Single-owner restart policy (read before touching watchdog or heal)
+
+Only `watchdog.sh` may restart the gateway. All other scripts — and any you add — must **alert and log only**. Two restart owners cause race conditions, broken rate-limit counters, and restart storms. See `docs/architecture.md` for the full rationale and how to extend detection without adding a second owner.
+
+## lib.sh sourcing pattern
+
+Every script starts with:
+```bash
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" && source "$LIB_DIR/lib.sh"
+```
+
+Key utilities provided:
+- `require_tools tool1 tool2 …` — exits with a usage hint if any tool is missing; Docker-aware for `openclaw`
+- `get_openclaw_version` — normalises the version string to `vYYYY.MM.DD` form
+- `version_below "vA" "vB"` — semver comparison used to version-gate checks for removed config paths
+- `send_notification "Title" "Body"` — journald + optional `notify-send`
+- `_discord_send key "message"` — sends to Discord via `openclaw message send`; silent no-op when gateway is down, config absent, or key missing
+- `_discord_ansi "color" "label" ["detail"]` — colored label + plain detail in an ANSI block; colors: `1;31m` red, `1;32m` green, `1;33m` yellow, `1;36m` cyan
+
+## Version-gating pattern
+
+Config paths removed in v2026.5.0 (`tools.exec.security`, `tools.exec.strictInlineEval`) are wrapped in:
+```bash
+if version_below "$CURRENT_VERSION" "v2026.5.0"; then
+  # check / fix the path
+else
+  log_info "path removed in v2026.5+ — skipped"
+fi
+```
+
+Use this pattern whenever a check targets a config path that may not exist in all installed versions. Don't call `openclaw config get` unconditionally for version-specific paths.
+
+## Test structure
+
+`tests/run.sh` is a single self-contained file — no test framework. Each test is a bash function named `test_*`, called via `run_test test_name` at the bottom of the file.
+
+`setup_fake_env` / `teardown_fake_env` establish an isolated `$HOME` under a temp dir and put stub binaries (`openclaw`, `curl`, `docker`, `systemctl`, `pgrep`) in `$PATH`. Docker helpers are overridden via the `OPENCLAW_DOCKER_STUBS` file (sourced by lib.sh) rather than stubbing the `docker` binary directly, so tests don't need Docker installed.
+
+Useful env vars for controlling stub behaviour in tests:
+- `OPENCLAW_STATUS_VERSION` — version string returned by the `openclaw` stub
+- `DOCKER_GATEWAY_STATUS` / `DOCKER_GATEWAY_HEALTH` — container state
+- `CURL_HTTP_STATUS` — HTTP status returned by the `curl` stub
+- `OPENCLAW_CALL_LOG` — if set, every stub call is appended here for assertion
+
+## Discord notifications
+
+Channel IDs live in `~/.openclaw/discord-channels.json` (per-user, not in the repo). The repo ships `config/discord-channels.example.json` as a template. Keys: `error_alerts`, `heartbeat`, `audit_trail`, `oc_updates`, `live_logs`. Scripts reference keys only — never raw snowflake IDs. `_discord_send` skips silently when the gateway is not running, so it is safe to call from any context.
+
+## Bash style conventions
+
+- `set -euo pipefail` at the top of every script
+- Color output via `lib.sh` variables (`$RED`, `$GRN`, `$YLW`, `$CYN`, `$BLD`, `$RST`) — automatically blank when not a TTY
+- Fix functions use the `try_fix()` pattern from `check-update.sh`, not `cmd 2>/dev/null && fixed || bad` (the old pattern swallows errors and lies in the summary)
+- snake_case function names throughout
