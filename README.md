@@ -197,7 +197,7 @@ bash scripts/remediation-board.sh list
 
 1. **Tier 1** — HTTP ping every 5 min (systemd user timer; cron fallback on non-systemd)
 2. **Tier 2** — Gateway restart via `docker compose --project-directory` + `heal.sh` if simple restart fails
-3. **Tier 3** — journald warning + desktop popup (via `notify-send`) after 3 failures in 15 min
+3. **Tier 3** — journald warning + desktop popup (via `notify-send`) + Discord `#error-alerts` after 3 failures in 15 min
 
 ## Platform
 
@@ -235,6 +235,18 @@ cp config/discord-channels.example.json ~/.openclaw/discord-channels.json
 
 Notifications are sent via `openclaw message send --channel discord`. If the gateway is not running, sends are skipped silently. If the config file is absent or a key is missing, that send is a no-op.
 
+| Event | Channel key | Default channel |
+|-------|-------------|-----------------|
+| Gateway down / escalation | `error_alerts` | `#error-alerts` |
+| Gateway recovered (state change only) | `heartbeat` | `#heartbeat-monitor` |
+| Heal: items still broken | `error_alerts` | `#error-alerts` |
+| Heal: items self-fixed | `audit_trail` | `#audit-trail` |
+| Update check: fixes failed | `error_alerts` | `#error-alerts` |
+| Update check: fixes applied OK | `oc_updates` | `#oc-updates-logs` |
+| Post-update: completed with warnings | `error_alerts` | `#error-alerts` |
+| Daily digest generated | `live_logs` | `#live-logs` |
+| Session monitor: critical incident | `error_alerts` | `#error-alerts` |
+
 ## Version history
 
 | Version | Key change |
@@ -256,6 +268,10 @@ bash tests/run.sh
 ```
 
 41 tests, 0 shellcheck warnings.
+
+## Claude Code
+
+A [`CLAUDE.md`](CLAUDE.md) is included for use with [Claude Code](https://claude.ai/code). It covers commands, deployment model, the single-owner restart policy, lib.sh patterns, test structure, and bash style conventions.
 
 ## Open-Source Release Checklist
 
