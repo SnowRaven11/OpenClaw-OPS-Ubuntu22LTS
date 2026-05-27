@@ -433,7 +433,7 @@ fi
 # Surface actionable outcomes via journald/notify-send so headless servers get paged.
 if [[ ${#BROKEN[@]} -gt 0 ]]; then
   send_notification "OpenClaw Heal" "${#BROKEN[@]} item(s) still broken — manual intervention needed"
-  _discord_send error_alerts "$(_discord_ansi '1;31m' "Heal: ${#BROKEN[@]} item(s) still broken — manual intervention needed")"
+  _discord_send error_alerts "$(_discord_ansi '1;31m' "Heal: ${#BROKEN[@]} item(s) still broken" 'manual intervention needed')"
 elif [[ ${#FIXED[@]} -gt 0 ]]; then
   send_notification "OpenClaw Heal" "Self-healed ${#FIXED[@]} item(s)"
   _discord_send audit_trail "$(_discord_ansi '1;32m' "Heal: self-healed ${#FIXED[@]} item(s)")"

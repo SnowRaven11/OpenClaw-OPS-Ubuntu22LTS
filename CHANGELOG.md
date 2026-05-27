@@ -6,6 +6,13 @@ Notable changes to openclaw-ops. Format follows [Keep a Changelog](https://keepa
 
 ---
 
+## [v1.2.8] — 2026-05-27
+
+### Changed
+- Discord messages: only the alert label is now colored; verbose details render in default channel color. `_discord_ansi` updated to accept an optional third `detail` argument; all 9 call sites split into colored label + plain detail
+
+---
+
 ## [v1.2.7] — 2026-05-27
 
 ### Added

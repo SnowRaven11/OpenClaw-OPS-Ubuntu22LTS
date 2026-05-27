@@ -376,9 +376,14 @@ print(d.get(sys.argv[2], ''))
 }
 
 _discord_ansi() {
-  local color="$1" text="$2"
-  # shellcheck disable=SC2059
-  printf '```ansi\n\033[%sm%s\033[0m\n```' "$color" "$text"
+  local color="$1" label="$2" detail="${3:-}"
+  if [[ -n "$detail" ]]; then
+    # shellcheck disable=SC2059
+    printf '```ansi\n\033[%sm%s\033[0m %s\n```' "$color" "$label" "$detail"
+  else
+    # shellcheck disable=SC2059
+    printf '```ansi\n\033[%sm%s\033[0m\n```' "$color" "$label"
+  fi
 }
 
 _discord_send() {

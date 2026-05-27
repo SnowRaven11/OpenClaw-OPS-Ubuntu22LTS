@@ -334,7 +334,7 @@ log "Restart attempts in last ${RESTART_ATTEMPT_WINDOW}s: $RESTART_COUNT"
 if [[ "$RESTART_COUNT" -ge "$MAX_RESTART_ATTEMPTS" ]]; then
   log "ERROR: Max restart attempts ($MAX_RESTART_ATTEMPTS) reached in window. Escalating."
   send_notification "OpenClaw Watchdog" "Gateway is down and not recovering. Manual intervention needed. Check: tail -50 ~/.openclaw/logs/gateway.err.log"
-  _discord_send error_alerts "$(_discord_ansi '1;31m' 'GATEWAY DOWN — not recovering. Manual intervention needed.')"
+  _discord_send error_alerts "$(_discord_ansi '1;31m' 'GATEWAY DOWN' 'not recovering — manual intervention needed')"
   log "ESCALATION: Gateway down, $RESTART_COUNT restarts attempted. Check: tail -50 ~/.openclaw/logs/gateway.err.log"
   exit 1
 fi
@@ -352,7 +352,7 @@ HTTP_STATUS_AFTER=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 15 "$GATE
 if [[ "$HTTP_STATUS_AFTER" == "200" ]] || [[ "$HTTP_STATUS_AFTER" == "401" ]]; then
   log "Gateway recovered (HTTP $HTTP_STATUS_AFTER)"
   send_notification "OpenClaw Watchdog" "Gateway restarted successfully."
-  _discord_send heartbeat "$(_discord_ansi '1;32m' 'Gateway recovered — restarted successfully.')"
+  _discord_send heartbeat "$(_discord_ansi '1;32m' 'Gateway recovered' 'restarted successfully')"
   maybe_run_session_monitor
   exit 0
 fi
