@@ -194,25 +194,18 @@ openclaw config get channels.slack
 openclaw config set channels.slack.botToken "xoxb-..."
 openclaw config set channels.whatsapp.dmPolicy pairing
 
-# Agent settings
-openclaw config get agents.defaults.model
-openclaw config set agents.defaults.model "anthropic/claude-opus-4-6"
+# Agent settings (v2026.5+: model is nested under model.primary)
+openclaw config get agents.defaults.model.primary
+openclaw config set agents.defaults.model.primary "anthropic/claude-opus-4-7"
 openclaw config set agents.defaults.sandbox.mode all
 openclaw config set agents.defaults.sandbox.workspaceAccess none
 openclaw config set agents.defaults.sandbox.scope agent
 
-# Sub-agent settings (v2026.2.17+)
-openclaw config set agents.defaults.subagents.maxSpawnDepth 2
-openclaw config set agents.defaults.subagents.maxChildrenPerAgent 5
-
-# 1M context window (Anthropic models, v2026.2.17+)
-openclaw config set agents.defaults.params.context1m true
+# Sub-agent concurrency (v2026.5+)
+openclaw config set agents.defaults.subagents.maxConcurrent 8
 
 # Session isolation
 openclaw config set session.dmScope "per-channel-peer"
-
-# Per-agent params overrides (v2026.2.23+)
-openclaw config set agents.defaults.params.cacheRetention true
 
 # Control plane tool denials (production recommended)
 openclaw config set agents.defaults.tools.deny '["gateway","cron","sessions_spawn","sessions_send"]'

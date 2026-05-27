@@ -96,9 +96,11 @@ case "${1:-}" in
         gateway.auth.mode) echo "${OPENCLAW_AUTH_MODE:-token}" ;;
         tools.exec.security) echo "${OPENCLAW_EXEC_SECURITY:-full}" ;;
         tools.exec.strictInlineEval) echo "${OPENCLAW_EXEC_STRICT:-false}" ;;
-        agents.defaults.model) echo "gpt-5.4" ;;
+        agents.defaults.model) echo "gpt-5.5" ;;
+        agents.defaults.model.primary) echo "openai/gpt-5.5" ;;
         agents.defaults.sandbox.mode) echo "${OPENCLAW_SANDBOX_MODE:-all}" ;;
         agents.defaults.subagents.maxSpawnDepth) echo "2" ;;
+        agents.defaults.subagents.maxConcurrent) echo "8" ;;
         gateway.bind) echo "${OPENCLAW_GATEWAY_BIND:-loopback}" ;;
         dmPolicy) echo "${OPENCLAW_DM_POLICY:-pairing}" ;;
         tools.deny) echo "${OPENCLAW_TOOLS_DENY:-gateway cron sessions_spawn}" ;;
@@ -1714,6 +1716,62 @@ PY
   assert_contains "$output" "Cost Summary"
 }
 
+test_heal_layer2b_version_gated_for_v2026_5_plus() {
+  # Static: verify heal.sh wraps the tools.exec config calls in a version_below
+  # guard so v2026.5+ installs don't get false BROKEN log lines for removed paths.
+  local src
+  src="$(cat "$ROOT_DIR/scripts/heal.sh")"
+  # The version_below call must appear before the tools.exec.security config get
+  local gate_line exec_line
+  gate_line="$(printf '%s\n' "$src" | grep -n 'version_below.*v2026\.5\.0' | grep -v '#' | head -1 | cut -d: -f1)"
+  exec_line="$(printf '%s\n' "$src" | grep -n 'openclaw config get tools\.exec\.security' | head -1 | cut -d: -f1)"
+  [[ -n "$gate_line" ]] || fail "heal.sh: missing version_below v2026.5.0 guard before tools.exec.security"
+  [[ -n "$exec_line" ]] || fail "heal.sh: tools.exec.security config get not found (expected inside version gate)"
+  (( gate_line < exec_line )) || fail "heal.sh: version_below guard (line $gate_line) must appear before tools.exec.security get (line $exec_line)"
+}
+
+test_check_update_exec_section_skipped_for_v2026_5_plus() {
+  setup_fake_env
+  trap teardown_fake_env RETURN
+
+  # Stub openclaw reporting v2026.5.1 and returning empty for the now-removed
+  # tools.exec.* paths (simulating a real v2026.5+ install).
+  local stub_dir="$HOME/.openclaw/.test-stubs"
+  mkdir -p "$stub_dir"
+  cat >"$stub_dir/openclaw" <<'STUB'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "config get")
+    case "$3" in
+      "gateway.auth.mode")             echo "token";  exit 0 ;;
+      "agents.defaults.model.primary") echo "openai/gpt-5.5"; exit 0 ;;
+      "agents.defaults.sandbox.mode")  echo "off";    exit 0 ;;
+      "agents.defaults.subagents.maxConcurrent") echo "8"; exit 0 ;;
+      # tools.exec.* no longer exist — simulate exit 1 (path not found)
+      "tools.exec.security"|"tools.exec.strictInlineEval") exit 1 ;;
+      *) exit 0 ;;
+    esac
+    ;;
+  "--version") echo "openclaw 2026.5.1"; exit 0 ;;
+  *) exit 0 ;;
+esac
+STUB
+  chmod +x "$stub_dir/openclaw"
+  export PATH="$stub_dir:$PATH"
+
+  local output
+  set +e
+  output="$(bash "$ROOT_DIR/scripts/check-update.sh" 2>&1)"
+  set -e
+
+  # Section [2] must report the "removed in v2026.5+" skip message, not a failure
+  assert_contains "$output" "removed in v2026.5+"
+  assert_not_contains "$output" "tools.exec.security = 'NOT SET'"
+  assert_not_contains "$output" "tools.exec.security = ''"
+  # ISSUES_FOUND must not be incremented for the exec section — no [✗] lines for it
+  assert_not_contains "$output" "tools.exec.security"
+}
+
 run_test() {
   local name="$1"
   printf 'Running %s\n' "$name"
@@ -1742,6 +1800,8 @@ run_test test_watchdog_throttles_session_monitor_invocation
 run_test test_watchdog_agent_layer_dedupes_same_second_failures
 run_test test_watchdog_agent_layer_counts_distinct_timestamps
 run_test test_watchdog_agent_layer_handles_empty_log_under_pipefail
+run_test test_heal_layer2b_version_gated_for_v2026_5_plus
+run_test test_check_update_exec_section_skipped_for_v2026_5_plus
 run_test test_check_update_fix_does_not_abort_on_first_failure_under_set_e
 run_test test_check_update_auth_token_failure_does_not_flip_mode
 run_test test_session_search_sanitizes_and_handles_corruption

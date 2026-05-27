@@ -6,6 +6,22 @@ Notable changes to openclaw-ops. Format follows [Keep a Changelog](https://keepa
 
 ---
 
+## [v1.2.6] — 2026-05-27
+
+### Fixed
+- `scripts/heal.sh` Layer 2b — `tools.exec.security` and `tools.exec.strictInlineEval` are config paths that were **removed in OpenClaw v2026.5.0** (exec policy is now managed entirely via `exec-approvals.json`). Without a version gate, every `heal.sh` run on v2026.5+ reported two bogus `[BROKEN] Failed to set tools.exec.*` lines. Now version-gated: skipped with an info message on v2026.5+, unchanged on v2026.2.24–v2026.4.x
+- `scripts/check-update.sh` section `[2]` — same root cause: the v2026.2.24 breaking-change check for `tools.exec.security` always saw empty values (path not found → `""`) and flagged them as misconfigured, incrementing `ISSUES_FOUND` and printing phantom `[✗]` lines on every run against a v2026.5+ install. Now version-gated; prints a `[✓]` skip note on v2026.5+
+- `scripts/check-update.sh` config snapshot — three fields in `SNAPSHOT_FIELDS` pointed at paths that no longer exist in v2026.5+: `tools.exec.security`, `tools.exec.strictInlineEval` (removed), and `agents.defaults.subagents.maxSpawnDepth` (renamed to `maxConcurrent`); `agents.defaults.model` also restructured to `model.primary`. Updated to current paths; `tools.exec.*` conditionally re-added for pre-v2026.5 installs
+
+### Added
+- `tests/run.sh` — two new tests: `test_heal_layer2b_version_gated_for_v2026_5_plus` (static guard that the version gate precedes the `tools.exec` config get in heal.sh) and `test_check_update_exec_section_skipped_for_v2026_5_plus` (behavioral: runs check-update.sh with v2026.5.1 and removed-path stubs, asserts no phantom issue is reported). Test count: 37 → 39
+
+### Changed
+- `README.md` — bumped "Tested against OpenClaw" from `2026.5.12` to `2026.5.26`
+- `docs/cli-reference.md` — removed four config paths that no longer exist in v2026.5+: `agents.defaults.params.context1m`, `agents.defaults.params.cacheRetention`, `agents.defaults.subagents.maxSpawnDepth`, `agents.defaults.subagents.maxChildrenPerAgent`; replaced with current equivalents (`agents.defaults.model.primary`, `agents.defaults.subagents.maxConcurrent`)
+
+---
+
 ## [v1.2.5] — 2026-05-20
 
 ### Fixed

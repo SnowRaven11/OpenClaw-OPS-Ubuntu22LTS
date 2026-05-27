@@ -235,26 +235,31 @@ else
   log_info "No exec-approvals.json found — skipping"
 fi
 
-# Layer 2b: tools.exec settings in openclaw.json
-EXEC_SECURITY=$(openclaw config get tools.exec.security 2>/dev/null || echo "")
-EXEC_STRICT=$(openclaw config get tools.exec.strictInlineEval 2>/dev/null || echo "")
+# Layer 2b: tools.exec settings in openclaw.json (removed in v2026.5.0)
+# In v2026.5+, exec policy is managed entirely via exec-approvals.json.
+if version_below "$CURRENT_VERSION" "v2026.5.0"; then
+  EXEC_SECURITY=$(openclaw config get tools.exec.security 2>/dev/null || echo "")
+  EXEC_STRICT=$(openclaw config get tools.exec.strictInlineEval 2>/dev/null || echo "")
 
-LAYER2B_OK=true
-if [[ "$EXEC_SECURITY" != "full" ]]; then
-  log_info "tools.exec.security=$EXEC_SECURITY — setting to full"
-  openclaw config set tools.exec.security full 2>/dev/null && \
-    log_fixed "tools.exec.security set to full" || \
-    log_broken "Failed to set tools.exec.security"
-  LAYER2B_OK=false
+  LAYER2B_OK=true
+  if [[ "$EXEC_SECURITY" != "full" ]]; then
+    log_info "tools.exec.security=$EXEC_SECURITY — setting to full"
+    openclaw config set tools.exec.security full 2>/dev/null && \
+      log_fixed "tools.exec.security set to full" || \
+      log_broken "Failed to set tools.exec.security"
+    LAYER2B_OK=false
+  fi
+  if [[ "$EXEC_STRICT" != "false" ]]; then
+    log_info "tools.exec.strictInlineEval=true — setting to false"
+    openclaw config set tools.exec.strictInlineEval false 2>/dev/null && \
+      log_fixed "tools.exec.strictInlineEval set to false" || \
+      log_broken "Failed to set tools.exec.strictInlineEval"
+    LAYER2B_OK=false
+  fi
+  [[ "$LAYER2B_OK" == "true" ]] && log_info "Layer 2b (openclaw.json exec settings) OK"
+else
+  log_info "Layer 2b: tools.exec.* removed in v2026.5+ — exec policy via exec-approvals.json"
 fi
-if [[ "$EXEC_STRICT" != "false" ]]; then
-  log_info "tools.exec.strictInlineEval=true — setting to false"
-  openclaw config set tools.exec.strictInlineEval false 2>/dev/null && \
-    log_fixed "tools.exec.strictInlineEval set to false" || \
-    log_broken "Failed to set tools.exec.strictInlineEval"
-  LAYER2B_OK=false
-fi
-[[ "$LAYER2B_OK" == "true" ]] && log_info "Layer 2b (openclaw.json exec settings) OK"
 
 # ── Step 4: Cron jobs ─────────────────────────────────────────────────────────
 echo ""

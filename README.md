@@ -2,7 +2,7 @@
 
 OpenClaw gateway operations skill for agent environments. Covers health checks, repair workflows, continuous monitoring, session analysis, update-change detection, and security review for a local or self-hosted OpenClaw install.
 
-Tested against OpenClaw `2026.5.12`.
+Tested against OpenClaw `2026.5.26`.
 
 ## What it does
 

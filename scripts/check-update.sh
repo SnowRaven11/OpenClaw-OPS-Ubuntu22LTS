@@ -207,37 +207,42 @@ echo ""
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BREAKING CHANGE: v2026.2.24 — tools.exec.security + strictInlineEval
+# Removed in v2026.5.0: exec policy is now managed via exec-approvals.json.
 # ─────────────────────────────────────────────────────────────────────────────
-echo -e "${BLD}[2] openclaw.json exec tool settings (introduced v2026.2.24)${RST}"
+echo -e "${BLD}[2] openclaw.json exec tool settings (v2026.2.24–v2026.4.x)${RST}"
 
-EXEC_SECURITY=$(openclaw config get tools.exec.security 2>/dev/null | tr -d '[:space:]' || echo "")
-EXEC_STRICT=$(openclaw config get tools.exec.strictInlineEval 2>/dev/null | tr -d '[:space:]' || echo "")
+if version_below "$CURRENT_VERSION" "v2026.5.0"; then
+  EXEC_SECURITY=$(openclaw config get tools.exec.security 2>/dev/null | tr -d '[:space:]' || echo "")
+  EXEC_STRICT=$(openclaw config get tools.exec.strictInlineEval 2>/dev/null | tr -d '[:space:]' || echo "")
 
-EXEC_OK=true
-if [[ "$EXEC_SECURITY" != "full" ]]; then
-  bad "tools.exec.security = '${EXEC_SECURITY:-NOT SET}' (expected: full)"
-  echo "     What this means: Without security=full, the gateway rejects inline"
-  echo "     eval and certain shell expansions agents rely on."
-  EXEC_OK=false
-  ISSUES_FOUND=$((ISSUES_FOUND + 1))
-fi
-if [[ "$EXEC_STRICT" == "true" ]]; then
-  bad "tools.exec.strictInlineEval = true (expected: false)"
-  echo "     What this means: Strict inline eval blocks common shell patterns"
-  echo "     used by agent skills, causing silent command failures."
-  EXEC_OK=false
-  ISSUES_FOUND=$((ISSUES_FOUND + 1))
-fi
+  EXEC_OK=true
+  if [[ "$EXEC_SECURITY" != "full" ]]; then
+    bad "tools.exec.security = '${EXEC_SECURITY:-NOT SET}' (expected: full)"
+    echo "     What this means: Without security=full, the gateway rejects inline"
+    echo "     eval and certain shell expansions agents rely on."
+    EXEC_OK=false
+    ISSUES_FOUND=$((ISSUES_FOUND + 1))
+  fi
+  if [[ "$EXEC_STRICT" == "true" ]]; then
+    bad "tools.exec.strictInlineEval = true (expected: false)"
+    echo "     What this means: Strict inline eval blocks common shell patterns"
+    echo "     used by agent skills, causing silent command failures."
+    EXEC_OK=false
+    ISSUES_FOUND=$((ISSUES_FOUND + 1))
+  fi
 
-if [[ "$EXEC_OK" == "true" ]]; then
-  good "tools.exec.security=full, strictInlineEval=false"
-elif [[ "$FIX_MODE" == "true" ]]; then
-  try_fix "set tools.exec.security=full" openclaw config set tools.exec.security full
-  try_fix "set tools.exec.strictInlineEval=false" openclaw config set tools.exec.strictInlineEval false
+  if [[ "$EXEC_OK" == "true" ]]; then
+    good "tools.exec.security=full, strictInlineEval=false"
+  elif [[ "$FIX_MODE" == "true" ]]; then
+    try_fix "set tools.exec.security=full" openclaw config set tools.exec.security full
+    try_fix "set tools.exec.strictInlineEval=false" openclaw config set tools.exec.strictInlineEval false
+  else
+    warn "To fix:"
+    echo "     openclaw config set tools.exec.security full"
+    echo "     openclaw config set tools.exec.strictInlineEval false"
+  fi
 else
-  warn "To fix:"
-  echo "     openclaw config set tools.exec.security full"
-  echo "     openclaw config set tools.exec.strictInlineEval false"
+  good "tools.exec.* paths removed in v2026.5+ — exec policy managed via exec-approvals.json"
 fi
 
 echo ""
@@ -293,12 +298,13 @@ echo "────────────────────────�
 
 SNAPSHOT_FIELDS=(
   "gateway.auth.mode"
-  "tools.exec.security"
-  "tools.exec.strictInlineEval"
-  "agents.defaults.model"
+  "agents.defaults.model.primary"
   "agents.defaults.sandbox.mode"
-  "agents.defaults.subagents.maxSpawnDepth"
+  "agents.defaults.subagents.maxConcurrent"
 )
+if version_below "$CURRENT_VERSION" "v2026.5.0"; then
+  SNAPSHOT_FIELDS+=("tools.exec.security" "tools.exec.strictInlineEval")
+fi
 
 for field in "${SNAPSHOT_FIELDS[@]}"; do
   val=$(openclaw config get "$field" 2>/dev/null | tr -d '[:space:]' || echo "(not set)")
