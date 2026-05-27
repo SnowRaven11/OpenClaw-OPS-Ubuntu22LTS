@@ -11,31 +11,90 @@ Tested against OpenClaw `2026.5.26`.
 
 ### Scripts
 
+Scripts are grouped by function. For full per-script documentation — purpose, when to use, flags, output, gotchas — see [`docs/scripts-reference.md`](docs/scripts-reference.md).
+
+#### Install & setup
+
 | Script | Purpose |
 |--------|---------|
-| `scripts/heal.sh` | One-shot auto-fix for the most common gateway issues |
-| `scripts/post-update.sh` | Explicit post-update orchestrator: check-update, heal, workspace reconcile, security scan, final health check, policy-guard sentinel trigger |
-| `scripts/watchdog.sh` | Runs every 5 min, restarts gateway if down, escalates after 3 failures |
 | `scripts/install-cli-wrapper.sh` | Installs `~/.local/bin/openclaw` host wrapper for Docker Compose installs; writes `~/.openclaw/ops-config.sh` |
-| `scripts/watchdog-install.sh` | Installs the watchdog as a systemd user timer; cron fallback for non-systemd |
+| `scripts/watchdog-install.sh` | Installs the watchdog as a systemd user timer (5 min); cron fallback for non-systemd; also adds daily log-rotate cron |
 | `scripts/watchdog-uninstall.sh` | Removes the watchdog (systemd units and/or cron entry) |
-| `scripts/check-update.sh` | Detects version changes, explains broken config, auto-fix with `--fix` |
-| `scripts/health-check.sh` | Declarative URL/process health checks; auto-generates targets file on first run |
-| `scripts/security-scan.sh` | Config hardening and credential exposure scan (0–100 score); skips bulky runtime/log/session history unless `--include-sessions` is passed |
-| `scripts/skill-audit.sh` | Static security audit for third-party skills before installation |
-| `scripts/codex-perf-check.sh` | Check and fix GPT-5.x performance opt-ins that ship disabled by default; `--fix` to apply |
-| `scripts/workspace-auto-commit.sh` | Local-only git snapshot helper for OpenClaw workspace repos; defaults to `~/.openclaw/workspace`, supports `--workspace` and `--all`, never pushes |
-| `scripts/workspace-git-audit.sh` | Audits `~/.openclaw/workspace*` repos for git status and auto-commit cron coverage; `--show-cron` prints setup commands for uncovered repos |
+
+#### Always-on monitoring
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/watchdog.sh` | Runs every 5 min — HTTP ping, restart if down, `heal.sh` escalation after 3 consecutive failures, `notify-send` alert |
 | `scripts/session-monitor.sh` | Behavioral checks over live session JSONL files; detects retry loops, stuck runs, auth errors |
+| `scripts/log-rotate.sh` | Rotates `~/.openclaw/logs` via logrotate; installed as a daily cron job by `watchdog-install.sh` |
+
+#### One-shot recovery
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/heal.sh` | One-shot auto-fix for the most common gateway issues: gateway down, auth mode, exec approvals, auto-disabled crons, stuck sessions |
+| `scripts/post-update.sh` | Post-update orchestrator: runs `check-update.sh --fix`, `heal.sh`, workspace reconcile, `security-scan.sh`, final health check, policy-guard sentinel |
+| `scripts/check-update.sh` | Detects version changes, explains broken config, auto-fix with `--fix`; version-aware (skips checks for paths removed in newer releases) |
+
+#### Declarative checks
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/health-check.sh` | Declarative URL/container/process health checks; auto-generates a Docker-aware targets file on first run |
+| `scripts/security-scan.sh` | Config hardening and credential exposure scan (0–100 score); skips bulky session history unless `--include-sessions` is passed |
+
+#### Performance tuning
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/codex-perf-check.sh` | Checks and fixes four GPT-5.x performance opt-ins that ship disabled by default (`--fix` to apply); requires v2026.4.x+ |
+
+#### Cron management
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/cron-error-inspector.sh` | Formats `openclaw cron list` failures as a triage-ready list: agent, schedule, last-error-reason, consecutive-error count, payload preview, fix hints |
+| `scripts/cron-optimize.sh` | Audits `agentTurn` cron jobs for missing `--light-context` flag (reduces token cost and timeout risk); `--fix` applies changes |
+
+#### Sessions & transcripts
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/session-purge.sh` | Reclaim disk and trim session-context bloat: archives large sessions, removes orphaned files, prunes old deleted/reset archives (`--apply` to write) |
 | `scripts/session-search.sh` | Full-text session search with structured output and secret redaction |
 | `scripts/session-resume.sh` | Compaction-first markdown resume for a single session, including failure context |
-| `scripts/daily-digest.sh` | Incident, activity, watchdog, and cost summary for the last N hours |
-| `scripts/incident-manager.sh` | Shared incident lifecycle helper (sourced by other scripts) |
-| `scripts/remediation-board.sh` | Durable checklist for surfaced remediation items, status transitions, evidence, and next checks |
-| `scripts/log-rotate.sh` | Rotate `~/.openclaw/logs` via logrotate; installed as a daily cron job by `watchdog-install.sh` |
-| `scripts/lib.sh` | Shared helpers: logging, port resolution, state files, sanitization (sourced) |
+| `scripts/prompt-truncation-report.sh` | Reports bootstrap-prompt truncation warnings from the latest session per agent (fires when AGENTS.md + MEMORY.md + SOUL*.md exceed model context budget) |
 
-For a per-script reference — purpose, when to use, usage, output, gotchas — see [`docs/scripts-reference.md`](docs/scripts-reference.md).
+#### Workspace (git safety)
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/workspace-auto-commit.sh` | Local-only git snapshot for OpenClaw workspace repos; defaults to `~/.openclaw/workspace`, supports `--workspace` and `--all`, never pushes |
+| `scripts/workspace-git-audit.sh` | Audits `~/.openclaw/workspace*` repos for git status and auto-commit cron coverage; `--show-cron` prints setup commands for uncovered repos |
+
+#### Reporting & triage
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/daily-digest.sh` | Incident, activity, watchdog, and cost summary for the last N hours |
+| `scripts/incident-manager.sh` | Shared incident lifecycle helper (sourced by other scripts; not run directly) |
+| `scripts/remediation-board.sh` | Durable checklist for surfaced remediation items — status transitions, evidence, next-check tracking |
+
+#### Audits & housekeeping
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/agent-dirs-audit.sh` | Audits dirs under `~/.openclaw/agents/` not in `agents.list`; classifies as EMPTY/STALE/DORMANT and offers cleanup modes |
+| `scripts/context-audit.sh` | Static audit of bootstrap-context bloat — scans AGENTS.md, MEMORY.md, SOUL*.md, estimates tokens, flags files above threshold |
+| `scripts/backup-rotate.sh` | Groups `*.bak*` files under `~/.openclaw` by path prefix and keeps the newest N per group; prunes accumulated backup noise |
+| `scripts/skill-audit.sh` | Static security audit for third-party skills before installation |
+
+#### Shared library
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/lib.sh` | Shared helpers: Docker introspection, port resolution, logging, state files, notifications, sanitization (sourced by all other scripts) |
 
 ## Prerequisites
 
@@ -47,13 +106,11 @@ For a per-script reference — purpose, when to use, usage, output, gotchas — 
 | `openssl` | heal.sh auth token generation |
 | `rg` (ripgrep) | session-search.sh |
 | `docker` | gateway detection and restart (watchdog.sh, heal.sh) |
-| `docker compose` (v2) | gateway lifecycle — restart/up via Compose |
+| `docker compose` (v2) | gateway lifecycle — restart/up via `--project-directory` |
 | `systemd` | watchdog timer only (gateway managed by Docker Compose) |
 | `notify-send` (optional) | desktop notifications when DISPLAY is set — `sudo apt-get install libnotify-bin` |
 
-`logrotate` is also pre-installed on Ubuntu 22 LTS and is used by `log-rotate.sh` to keep `~/.openclaw/logs` from growing unbounded (installed automatically by `watchdog-install.sh`).
-
-`python3`, `curl`, and `openssl` are pre-installed on Ubuntu 22 LTS. Install `ripgrep` if you want `session-search.sh`:
+`python3`, `curl`, `openssl`, and `logrotate` are pre-installed on Ubuntu 22 LTS. Install ripgrep if you want `session-search.sh`:
 ```bash
 sudo apt-get install -y ripgrep
 ```
@@ -66,20 +123,22 @@ sudo apt-get install -y ripgrep
 openclaw --version
 ```
 
+Scripts are version-aware: checks for config paths removed in newer OpenClaw releases are automatically skipped (e.g. `tools.exec.*` removed in v2026.5.0 — exec policy is now managed via `exec-approvals.json`).
+
 ## Quick start
 
 ```bash
 # 1. Verify Docker Compose gateway is running
 docker compose --project-directory /srv/openclaw/openclaw ps
 
-# 2. Install host CLI wrapper (routes openclaw commands to Docker containers)
+# 2. Install host CLI wrapper (routes openclaw commands into Docker containers)
 bash scripts/install-cli-wrapper.sh
 # Add ~/.local/bin to PATH if prompted, then: source ~/.bashrc
 
-# 3. One-time heal pass
+# 3. One-time heal pass (fixes approvals, auth mode, cron state)
 bash scripts/heal.sh
 
-# 4. Install always-on watchdog (systemd user timer)
+# 4. Install always-on watchdog (systemd user timer, 5-min interval)
 bash scripts/watchdog-install.sh
 
 # 5. Verify watchdog is running
@@ -119,8 +178,12 @@ bash scripts/session-monitor.sh --verbose
 # Search session history
 bash scripts/session-search.sh "unauthorized" --limit 10
 
+# Purge old/large sessions (dry run first, then --apply)
+bash scripts/session-purge.sh
+bash scripts/session-purge.sh --apply
+
 # Build a resume for a specific session
-bash scripts/session-resume.sh ~/.openclaw/agents/knox/sessions/<session>.jsonl
+bash scripts/session-resume.sh ~/.openclaw/agents/daedalus/sessions/<session>.jsonl
 
 # 24-hour digest: incidents, activity, costs
 bash scripts/daily-digest.sh --hours 24
@@ -133,7 +196,7 @@ bash scripts/remediation-board.sh list
 ## Watchdog escalation model
 
 1. **Tier 1** — HTTP ping every 5 min (systemd user timer; cron fallback on non-systemd)
-2. **Tier 2** — Gateway restart + `heal.sh` if simple restart fails
+2. **Tier 2** — Gateway restart via `docker compose --project-directory` + `heal.sh` if simple restart fails
 3. **Tier 3** — journald warning + desktop popup (via `notify-send`) after 3 failures in 15 min
 
 ## Platform
@@ -151,22 +214,23 @@ tail -f ~/.openclaw/logs/watchdog.log
 
 ## Notes
 
-- `health-check.sh` creates `~/.openclaw/health-targets.conf` automatically on first run using the port from `openclaw.json`. Edit the file to add custom targets or adjust thresholds.
-- `health-check.sh` can report a process uptime failure immediately after `openclaw gateway restart` if the target has a minimum uptime threshold (e.g. 300s). That is expected — lower the threshold during smoke tests, then restore it.
-- `security-scan.sh` reports file paths and line numbers for suspected secrets, but redacts the secret values themselves.
-- `check-update.sh` is intended for real post-upgrade triage. It is normal to report a version change the first time it runs after an upgrade.
-- `post-update.sh` is the explicit post-update orchestrator. It skips the heavy sequence when the current version matches the stored state and otherwise runs `check-update.sh --fix`, `heal.sh`, the workspace reconcile script if present, `security-scan.sh`, and a final `openclaw health --json`.
-- On the VPS, the workspace reconcile stage refreshes model policy, auth/profile state, voice defaults, and the gateway service through `openclaw_post_update_reconcile.py` (or the equivalent systemd oneshot wrapper).
-- After the health check it best-effort touches `~/.openclaw/state/policy-guard.trigger` (creating parent dirs if needed). The VPS can wire `openclaw-policy-guard.path` to that sentinel after updates.
+- `health-check.sh` creates `~/.openclaw/health-targets.conf` on first run using the port from `openclaw.json`. On Docker Compose deployments the default target is a `container|gateway|...` check rather than a host process check. Edit the file to add custom targets or adjust thresholds.
+- `health-check.sh` reports a container uptime failure immediately after a gateway restart if the target has a minimum uptime threshold (default 300s). Expected — lower the threshold during smoke tests, then restore it.
+- `security-scan.sh` reports file paths and line numbers for suspected secrets but redacts the values themselves.
+- `check-update.sh` is intended for post-upgrade triage. It is normal to report a version change the first time it runs after an upgrade. Version-specific checks are automatically skipped when the underlying config path no longer exists in the installed version.
+- `post-update.sh` skips the full sequence when the stored version matches the current version. Otherwise it runs `check-update.sh --fix`, `heal.sh`, the workspace reconcile script if present, `security-scan.sh`, and a final `openclaw health --json`, then touches `~/.openclaw/state/policy-guard.trigger`.
 - Set `OPENCLAW_POST_UPDATE_RECONCILE_SCRIPT` (and optionally `OPENCLAW_POST_UPDATE_RECONCILE_INTERPRETER`) if the reconcile script lives somewhere other than the default workspace path.
-- If another wrapper or automation layer launches the post-update hook, set `OPENCLAW_SKIP_WRAPPER_BACKUP=1` for nested `openclaw` calls so internal subcommands do not trigger backup loops.
-- `codex-perf-check.sh` requires v2026.4.x or later — the four settings it checks do not exist in earlier releases.
+- Set `OPENCLAW_SKIP_WRAPPER_BACKUP=1` when an outer automation layer calls `post-update.sh` so nested `openclaw` calls don't trigger backup loops.
+- `codex-perf-check.sh` requires v2026.4.x or later — the settings it checks don't exist in earlier releases.
+- `session-purge.sh` excludes `*.trajectory.jsonl` files from orphan detection using `${base%%.*}` UUID extraction to avoid false positives against Codex rollout logs.
 
 ## Running tests
 
 ```bash
 bash tests/run.sh
 ```
+
+39 tests, 0 shellcheck warnings.
 
 ## Open-Source Release Checklist
 
