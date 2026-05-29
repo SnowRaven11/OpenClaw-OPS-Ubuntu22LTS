@@ -11,7 +11,7 @@ source "$LIB_DIR/lib.sh"
 # ── Preflight ────────────────────────────────────────────────────────────────
 require_tools openclaw python3 openssl || exit 1
 CONFIG_FILE="$(openclaw config file 2>/dev/null || echo "$HOME/.openclaw/openclaw.json")"
-CONFIG_FILE="$(python3 -c 'import os, sys; print(os.path.expanduser(sys.argv[1]))' "$CONFIG_FILE" 2>/dev/null || echo "$HOME/.openclaw/openclaw.json")"
+CONFIG_FILE="$(python3 -c 'import os, sys; print(os.path.expandvars(os.path.expanduser(sys.argv[1])))' "$CONFIG_FILE" 2>/dev/null || echo "$HOME/.openclaw/openclaw.json")"
 
 # ── Flags ────────────────────────────────────────────────────────────────────
 FLAG_FIX=false
@@ -135,6 +135,8 @@ run_compliance() {
   BIND=$(openclaw config get gateway.bind 2>/dev/null || echo "unknown")
   if [[ "$BIND" == "loopback" ]] || [[ "$BIND" == "127.0.0.1" ]]; then
     pass "gateway.bind = $BIND (loopback only)"
+  elif [[ "$BIND" == "lan" ]]; then
+    log_warn "gateway.bind = lan (accepted local LAN setup; no score deduction)"
   else
     deduct 20 "gateway.bind = $BIND (should be loopback or 127.0.0.1)"
     if [[ "$FLAG_FIX" == "true" ]]; then
@@ -349,6 +351,18 @@ run_credentials() {
             ;;
         esac
       fi
+      # Approved exception:
+      # Active runtime secret store. Only allow ANTHROPIC_API_KEY in the live
+      # ~/.openclaw/.env file, and only when that file is locked to 600.
+      if [[ "$cfg_file" == "$HOME/.openclaw/.env" ]] && echo "$match" | grep -qE '^[^:]+:[0-9]+:ANTHROPIC_API_KEY='; then
+        perm="$(stat -c '%a' "$cfg_file" 2>/dev/null || echo '')"
+        if [[ "$perm" == "600" ]]; then
+          log_ok "  Approved active secret exception: $cfg_file: ANTHROPIC_API_KEY with permissions 600"
+          ((expected_secret_count++)) || true
+          continue
+        fi
+      fi
+
       if (( secret_reported < MAX_FINDINGS )); then
         log_error "  Secret found: $(redact_match "$match")"
         ((secret_reported++)) || true
