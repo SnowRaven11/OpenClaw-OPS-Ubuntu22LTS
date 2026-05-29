@@ -260,6 +260,7 @@ Notifications are sent via `openclaw message send --channel discord`. If the gat
 | v1.2.6 | v2026.5+ GAP: version-gate removed `tools.exec.*` config paths in heal.sh and check-update.sh; fix snapshot fields (`maxConcurrent`, `model.primary`); update cli-reference.md, +2 tests (39) |
 | v1.2.7 | Discord notifications: 9 existing `send_notification` call sites routed to Discord via `_discord_send`; per-user `~/.openclaw/discord-channels.json`; ANSI color blocks; `config/discord-channels.example.json` shipped in repo; +2 tests (41) |
 | v1.2.8 | Discord message style: only the alert label is colored; verbose details render in default channel color. `_discord_ansi` accepts optional `detail` argument; all 9 call sites updated |
+| v1.2.9 | `security-scan.sh`: `gateway.bind=lan` treated as accepted warning (no score deduction); `~/.openclaw/.env` with chmod 600 approved as active runtime secret exception; config path now expands `$OPENCLAW_HOME` as well as `~` |
 
 ## Running tests
 
