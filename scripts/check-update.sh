@@ -291,6 +291,40 @@ info "sessions correctly, this is why. See docs.openclaw.ai/changelog"
 echo ""
 
 # ─────────────────────────────────────────────────────────────────────────────
+# BREAKING CHANGE: v2026.5.28 — agents.defaults.sandbox.mode defaults to non-main
+# In v2026.5.28 the default changed from 'off' to 'non-main', which tries to spin
+# up Docker-in-Docker sandboxes for every non-main agent. On this host OC runs
+# inside Docker containers that don't have the docker binary in PATH, so any
+# agent run (Argos crons, Daedalus tasks) fails immediately with:
+#   "Sandbox mode requires Docker, but the 'docker' command was not found in PATH"
+# Fix: force agents.defaults.sandbox.mode=off so agents run unsandboxed as before.
+# ─────────────────────────────────────────────────────────────────────────────
+echo -e "${BLD}[5] Agent sandbox mode (default changed in v2026.5.28)${RST}"
+
+SANDBOX_MODE=$(openclaw config get agents.defaults.sandbox.mode 2>/dev/null | tr -d '[:space:]' || echo "unknown")
+if [[ "$SANDBOX_MODE" == "off" ]]; then
+  good "agents.defaults.sandbox.mode = 'off'"
+elif [[ "$SANDBOX_MODE" == "unknown" || -z "$SANDBOX_MODE" ]]; then
+  warn "Could not read agents.defaults.sandbox.mode — check openclaw is responding"
+else
+  bad "agents.defaults.sandbox.mode = '$SANDBOX_MODE' — Docker-in-Docker is not available in this environment"
+  echo "     What this means: v2026.5.28 changed the default to 'non-main', which"
+  echo "     tries to sandbox every Argos/Daedalus agent turn using Docker. Because"
+  echo "     OC runs inside a container without the docker binary, every agent run"
+  echo "     fails immediately with 'docker command not found in PATH'."
+  ISSUES_FOUND=$((ISSUES_FOUND + 1))
+
+  if [[ "$FIX_MODE" == "true" ]]; then
+    try_fix "set agents.defaults.sandbox.mode=off" \
+      openclaw config set agents.defaults.sandbox.mode off
+  else
+    warn "To fix: run this script with --fix, or manually set:"
+    echo "     openclaw config set agents.defaults.sandbox.mode off"
+  fi
+fi
+echo ""
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Config snapshot — show key settings at a glance
 # ─────────────────────────────────────────────────────────────────────────────
 echo -e "${BLD}Config snapshot${RST}"
