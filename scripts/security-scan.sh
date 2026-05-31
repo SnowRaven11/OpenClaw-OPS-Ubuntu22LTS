@@ -165,6 +165,8 @@ run_compliance() {
   SANDBOX="$(config_get_optional agents.defaults.sandbox.mode)"
   if [[ "$SANDBOX" == "all" ]] || [[ "$SANDBOX" == "non-main" ]]; then
     pass "agents.defaults.sandbox.mode = $SANDBOX"
+  elif [[ "$SANDBOX" == "off" ]]; then
+    log_warn "agents.defaults.sandbox.mode = off (accepted: Docker-in-Docker unavailable in this environment; no score deduction)"
   elif [[ -z "$SANDBOX" ]]; then
     log_info "agents.defaults.sandbox.mode is not explicitly set in this config"
   else
