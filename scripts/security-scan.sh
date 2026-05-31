@@ -10,8 +10,8 @@ source "$LIB_DIR/lib.sh"
 
 # ── Preflight ────────────────────────────────────────────────────────────────
 require_tools openclaw python3 openssl || exit 1
-CONFIG_FILE="$(openclaw config file 2>/dev/null || echo "$HOME/.openclaw/openclaw.json")"
-CONFIG_FILE="$(python3 -c 'import os, sys; print(os.path.expandvars(os.path.expanduser(sys.argv[1])))' "$CONFIG_FILE" 2>/dev/null || echo "$HOME/.openclaw/openclaw.json")"
+CONFIG_FILE="$(openclaw config file 2>/dev/null || echo "$OPENCLAW_DIR/openclaw.json")"
+CONFIG_FILE="$(python3 -c 'import os, sys; print(os.path.expandvars(os.path.expanduser(sys.argv[1])))' "$CONFIG_FILE" 2>/dev/null || echo "$OPENCLAW_DIR/openclaw.json")"
 
 # ── Flags ────────────────────────────────────────────────────────────────────
 FLAG_FIX=false
@@ -251,7 +251,7 @@ run_credentials() {
   echo "──────────────────────────────────────"
 
   local CRED_ISSUES=0
-  local CONFIG_DIR="$HOME/.openclaw"
+  local CONFIG_DIR="$OPENCLAW_DIR"
   local BACKUP_DIR="$HOME/.openclaw-update-backups"
   local SYSTEMD_USER_DIR="${OPENCLAW_SECURITY_SCAN_SYSTEMD_USER_DIR:-$HOME/.config/systemd/user}"
   local SYSTEMD_SYSTEM_DIR="${OPENCLAW_SECURITY_SCAN_SYSTEMD_SYSTEM_DIR:-/etc/systemd/system}"
@@ -354,7 +354,7 @@ run_credentials() {
       # Approved exception:
       # Active runtime secret store. Only allow ANTHROPIC_API_KEY in the live
       # ~/.openclaw/.env file, and only when that file is locked to 600.
-      if [[ "$cfg_file" == "$HOME/.openclaw/.env" ]] && echo "$match" | grep -qE '^[^:]+:[0-9]+:ANTHROPIC_API_KEY='; then
+      if [[ "$cfg_file" == "$OPENCLAW_DIR/.env" ]] && echo "$match" | grep -qE '^[^:]+:[0-9]+:ANTHROPIC_API_KEY='; then
         perm="$(stat -c '%a' "$cfg_file" 2>/dev/null || echo '')"
         if [[ "$perm" == "600" ]]; then
           log_ok "  Approved active secret exception: $cfg_file: ANTHROPIC_API_KEY with permissions 600"
@@ -478,8 +478,8 @@ run_drift() {
   echo -e "${BLD}Skill File Drift Detection${RST}"
   echo "──────────────────────────────────────"
 
-  local SKILLS_DIR="$HOME/.openclaw/skills"
-  local BASELINE="$HOME/.openclaw/security/skill-hashes.json"
+  local SKILLS_DIR="$OPENCLAW_DIR/skills"
+  local BASELINE="$OPENCLAW_DIR/security/skill-hashes.json"
   local BASELINE_DIR
   BASELINE_DIR="$(dirname "$BASELINE")"
 

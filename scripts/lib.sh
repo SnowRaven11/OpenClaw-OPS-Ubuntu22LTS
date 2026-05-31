@@ -17,6 +17,11 @@ else
   RED='' GRN='' YLW='' CYN='' BLD='' RST=''
 fi
 
+# ── OpenClaw home directory ────────────────────────────────────────────────
+# Honor OPENCLAW_HOME (introduced in OC 2026.5.28) over HOME, and let callers
+# override via OPENCLAW_DIR for custom installs or test isolation.
+OPENCLAW_DIR="${OPENCLAW_DIR:-${OPENCLAW_HOME:-$HOME}/.openclaw}"
+
 # ── Logging helpers ─────────────────────────────────────────────────────────
 log_fixed()  { echo -e "${GRN}[FIXED]${RST}  $1"; }
 log_broken() { echo -e "${RED}[BROKEN]${RST} $1"; }
@@ -366,7 +371,7 @@ send_notification() {
 
 _discord_channel() {
   local key="${1:-}"
-  local cfg="$HOME/.openclaw/discord-channels.json"
+  local cfg="$OPENCLAW_DIR/discord-channels.json"
   [[ -f "$cfg" ]] || { echo ""; return 0; }
   python3 -c "
 import json, sys

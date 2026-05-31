@@ -18,8 +18,8 @@ RESTART_ATTEMPT_WINDOW=900  # 15 minutes
 HEALTH_FAILURE_WINDOW=600    # require repeated unhealthy probes within 10 minutes
 REQUIRED_HEALTH_FAILURES=2
 GATEWAY_WARMUP_GRACE=120     # do not restart a young gateway during startup
-STATE_FILE="$HOME/.openclaw/watchdog-state.json"
-RUN_LOCK_DIR="$HOME/.openclaw/watchdog.lock"
+STATE_FILE="$OPENCLAW_DIR/watchdog-state.json"
+RUN_LOCK_DIR="$OPENCLAW_DIR/watchdog.lock"
 
 mkdir -p "$LOG_DIR"
 mkdir -p "$(dirname "$STATE_FILE")"
@@ -228,7 +228,7 @@ check_agent_layer_health() {
   # HTTP /health probe can return 200 while every agent's tool_calls=0 because
   # of codex hang / cross-config provider / dead-run patterns. Log-based probe
   # complements the HTTP probe without spending a real model call per tick.
-  local log="$HOME/.openclaw/logs/gateway.err.log"
+  local log="$OPENCLAW_DIR/logs/gateway.err.log"
   [[ -r "$log" ]] || return 0
 
   local cutoff

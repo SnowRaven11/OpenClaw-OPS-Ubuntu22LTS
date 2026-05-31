@@ -34,7 +34,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 WRAPPER="$HOME/.local/bin/openclaw"
-OPS_CONFIG="$HOME/.openclaw/ops-config.sh"
+OPS_CONFIG="$OPENCLAW_DIR/ops-config.sh"
 
 mkdir -p "$(dirname "$WRAPPER")" "$(dirname "$OPS_CONFIG")"
 
@@ -95,7 +95,7 @@ echo ""
 echo "Done. Test with: openclaw --version"
 
 # Discord notification setup hint
-DISCORD_CFG="$HOME/.openclaw/discord-channels.json"
+DISCORD_CFG="$OPENCLAW_DIR/discord-channels.json"
 if [[ ! -f "$DISCORD_CFG" ]]; then
   echo ""
   echo "Optional: Discord notifications"

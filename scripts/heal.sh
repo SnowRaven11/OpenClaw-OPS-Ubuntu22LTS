@@ -12,7 +12,7 @@ FIXED=()
 BROKEN=()
 MANUAL=()
 RESTARTED=false
-STATE_FILE="$HOME/.openclaw/watchdog-state.json"
+STATE_FILE="$OPENCLAW_DIR/watchdog-state.json"
 
 # ── Preflight: check required tools ──────────────────────────────────────────
 # openclaw is required: many steps read/set config via `openclaw config`,
@@ -444,7 +444,7 @@ echo ""
 # ── Incident log (JSONL) ──────────────────────────────────────────────────────
 # Appends a structured record per run so patterns surface over time.
 # View with: cat ~/.openclaw/logs/heal-incidents.jsonl | python3 -m json.tool
-INCIDENT_LOG="$HOME/.openclaw/logs/heal-incidents.jsonl"
+INCIDENT_LOG="$OPENCLAW_DIR/logs/heal-incidents.jsonl"
 mkdir -p "$(dirname "$INCIDENT_LOG")"
 
 OUTCOME="clean"

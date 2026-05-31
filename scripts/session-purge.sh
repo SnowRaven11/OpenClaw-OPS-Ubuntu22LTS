@@ -40,7 +40,7 @@ done
 
 require_tools openclaw python3 || exit 1
 
-AGENTS_DIR="$HOME/.openclaw/agents"
+AGENTS_DIR="$OPENCLAW_DIR/agents"
 [[ -d "$AGENTS_DIR" ]] || { log_error "$AGENTS_DIR not found"; exit 1; }
 
 echo ""

@@ -23,8 +23,8 @@ require_tools python3 openclaw openssl || exit 1
 FIX_MODE=false
 [[ "${1:-}" == "--fix" ]] && FIX_MODE=true
 
-STATE_FILE="$HOME/.openclaw/watchdog-state.json"
-APPROVALS_JSON="$HOME/.openclaw/exec-approvals.json"
+STATE_FILE="$OPENCLAW_DIR/watchdog-state.json"
+APPROVALS_JSON="$OPENCLAW_DIR/exec-approvals.json"
 
 warn()  { echo -e "${YLW}[!]${RST} $1"; }
 good()  { echo -e "${GRN}[✓]${RST} $1"; }

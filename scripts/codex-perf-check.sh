@@ -24,7 +24,7 @@ source "$LIB_DIR/lib.sh"
 FIX_MODE=false
 [[ "${1:-}" == "--fix" ]] && FIX_MODE=true
 
-CONFIG="$HOME/.openclaw/openclaw.json"
+CONFIG="$OPENCLAW_DIR/openclaw.json"
 
 ISSUES=()
 FIXED=()

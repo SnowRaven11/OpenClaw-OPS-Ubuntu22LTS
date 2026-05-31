@@ -6,6 +6,27 @@ Notable changes to openclaw-ops. Format follows [Keep a Changelog](https://keepa
 
 ---
 
+## [v1.2.10] — 2026-05-31
+
+### Added
+- `scripts/lib.sh` — defines `OPENCLAW_DIR="${OPENCLAW_DIR:-${OPENCLAW_HOME:-$HOME}/.openclaw}"` so all scripts honor the `OPENCLAW_HOME` env var introduced in OpenClaw 2026.5.28 (wins over `HOME` in OC's config root resolution). Scripts that already defined their own `OPENCLAW_DIR` are unaffected (lib.sh sets it first; their `:-` no-ops).
+- `tests/run.sh` — `test_check_update_sandbox_mode_flagged_when_not_off`: stubs `agents.defaults.sandbox.mode=non-main` (the 2026.5.28 new default) and verifies check [5] fires with the expected diagnostic. Test count: 41 → 42
+
+### Fixed
+- `scripts/heal.sh`, `check-update.sh`, `watchdog.sh`, `session-purge.sh`, `security-scan.sh`, `install-cli-wrapper.sh`, `codex-perf-check.sh` — replaced hardcoded `$HOME/.openclaw` paths with `$OPENCLAW_DIR` so config, state, sessions, and approvals resolve correctly when `OPENCLAW_HOME` is set
+- `scripts/lib.sh` `_discord_channel` — same path fix for `discord-channels.json` lookup
+
+---
+
+## [v1.2.9] — 2026-05-30
+
+### Fixed
+- `scripts/security-scan.sh` — `gateway.bind=lan` now treated as an accepted warning with no score deduction (matches common LAN-only install pattern)
+- `scripts/security-scan.sh` — `~/.openclaw/.env` with chmod 600 approved as an active runtime secret exception (ANTHROPIC_API_KEY stored securely is not a violation)
+- `scripts/security-scan.sh` — config file path now expands `$OPENCLAW_HOME` environment variable in addition to `~` (uses `os.path.expandvars` alongside `os.path.expanduser`)
+
+---
+
 ## [v1.2.8] — 2026-05-27
 
 ### Changed

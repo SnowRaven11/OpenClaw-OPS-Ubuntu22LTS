@@ -1772,6 +1772,39 @@ STUB
   assert_not_contains "$output" "tools.exec.security"
 }
 
+test_check_update_sandbox_mode_flagged_when_not_off() {
+  setup_fake_env
+  trap teardown_fake_env RETURN
+
+  local stub_dir="$HOME/.openclaw/.test-stubs"
+  mkdir -p "$stub_dir"
+  cat >"$stub_dir/openclaw" <<'STUB'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "config get")
+    case "$3" in
+      "gateway.auth.mode")             echo "token";    exit 0 ;;
+      "agents.defaults.model.primary") echo "openai/gpt-5.5"; exit 0 ;;
+      "agents.defaults.sandbox.mode")  echo "non-main"; exit 0 ;;
+      "agents.defaults.subagents.maxConcurrent") echo "8"; exit 0 ;;
+      *) exit 0 ;;
+    esac ;;
+  "--version") echo "openclaw 2026.5.28"; exit 0 ;;
+  *) exit 0 ;;
+esac
+STUB
+  chmod +x "$stub_dir/openclaw"
+  export PATH="$stub_dir:$PATH"
+
+  local output
+  set +e
+  output="$(bash "$ROOT_DIR/scripts/check-update.sh" 2>&1)"
+  set -e
+
+  assert_contains "$output" "non-main"
+  assert_contains "$output" "Docker-in-Docker"
+}
+
 test_discord_send_skips_when_key_missing_from_config() {
   setup_fake_env
   trap teardown_fake_env RETURN
@@ -1839,6 +1872,7 @@ run_test test_watchdog_agent_layer_counts_distinct_timestamps
 run_test test_watchdog_agent_layer_handles_empty_log_under_pipefail
 run_test test_heal_layer2b_version_gated_for_v2026_5_plus
 run_test test_check_update_exec_section_skipped_for_v2026_5_plus
+run_test test_check_update_sandbox_mode_flagged_when_not_off
 run_test test_check_update_fix_does_not_abort_on_first_failure_under_set_e
 run_test test_check_update_auth_token_failure_does_not_flip_mode
 run_test test_session_search_sanitizes_and_handles_corruption
