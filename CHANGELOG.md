@@ -6,6 +6,13 @@ Notable changes to openclaw-ops. Format follows [Keep a Changelog](https://keepa
 
 ---
 
+## [v1.2.11] — 2026-05-31
+
+### Fixed
+- `scripts/security-scan.sh` check [3] — `agents.defaults.sandbox.mode=off` now treated as an accepted warning with no score deduction on Docker-in-Docker hosts where the `docker` binary is unavailable inside the container. Mirrors the existing `gateway.bind=lan` pattern. Previously penalized `-15` even though `check-update.sh` explicitly enforces `off` on this install.
+
+---
+
 ## [v1.2.10] — 2026-05-31
 
 ### Added
