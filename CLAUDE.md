@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Run all tests (41 tests, should take ~30s)
+# Run all tests (42 tests, should take ~30s)
 bash tests/run.sh
 
 # Lint all scripts (must pass with 0 warnings)
@@ -66,6 +66,7 @@ Key utilities provided:
 - `send_notification "Title" "Body"` — journald + optional `notify-send`
 - `_discord_send key "message"` — sends to Discord via `openclaw message send`; silent no-op when gateway is down, config absent, or key missing
 - `_discord_ansi "color" "label" ["detail"]` — colored label + plain detail in an ANSI block; colors: `1;31m` red, `1;32m` green, `1;33m` yellow, `1;36m` cyan
+- `OPENCLAW_DIR` — set at source time: `"${OPENCLAW_DIR:-${OPENCLAW_HOME:-$HOME}/.openclaw}"`. Use `$OPENCLAW_DIR` everywhere instead of hardcoding `$HOME/.openclaw`; honors the `OPENCLAW_HOME` env var introduced in OC 2026.5.28
 - `file_sha256 "$f"` — uses `sha256sum` then `openssl` fallback; never `shasum` (macOS only, not present on Ubuntu)
 
 ## Version-gating pattern
