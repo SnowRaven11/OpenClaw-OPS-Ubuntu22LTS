@@ -1730,6 +1730,19 @@ test_heal_layer2b_version_gated_for_v2026_5_plus() {
   (( gate_line < exec_line )) || fail "heal.sh: version_below guard (line $gate_line) must appear before tools.exec.security get (line $exec_line)"
 }
 
+test_heal_cron_step_version_gated_for_v2026_6_1_plus() {
+  # Static: verify heal.sh wraps the jobs.json cron step in a version_below guard
+  # so v2026.6.1+ installs use the CLI API instead of the removed file.
+  local src
+  src="$(cat "$ROOT_DIR/scripts/heal.sh")"
+  local gate_line jobs_line
+  gate_line="$(printf '%s\n' "$src" | grep -n 'version_below.*v2026\.6\.1' | grep -v '#' | head -1 | cut -d: -f1)"
+  jobs_line="$(printf '%s\n' "$src" | grep -n 'cron/jobs\.json' | head -1 | cut -d: -f1)"
+  [[ -n "$gate_line" ]] || fail "heal.sh: missing version_below v2026.6.1 guard before jobs.json reference"
+  [[ -n "$jobs_line" ]] || fail "heal.sh: jobs.json reference not found (expected inside version gate)"
+  (( gate_line < jobs_line )) || fail "heal.sh: version_below guard (line $gate_line) must appear before jobs.json reference (line $jobs_line)"
+}
+
 test_check_update_exec_section_skipped_for_v2026_5_plus() {
   setup_fake_env
   trap teardown_fake_env RETURN
@@ -1871,6 +1884,7 @@ run_test test_watchdog_agent_layer_dedupes_same_second_failures
 run_test test_watchdog_agent_layer_counts_distinct_timestamps
 run_test test_watchdog_agent_layer_handles_empty_log_under_pipefail
 run_test test_heal_layer2b_version_gated_for_v2026_5_plus
+run_test test_heal_cron_step_version_gated_for_v2026_6_1_plus
 run_test test_check_update_exec_section_skipped_for_v2026_5_plus
 run_test test_check_update_sandbox_mode_flagged_when_not_off
 run_test test_check_update_fix_does_not_abort_on_first_failure_under_set_e
