@@ -66,6 +66,9 @@ setup_fake_env() {
   export TEST_ROOT
   TEST_HOME="$TEST_ROOT/home"
   export HOME="$TEST_HOME"
+  # OPENCLAW_DIR must be reset alongside HOME so lib.sh's ${:-} fallback doesn't
+  # lock in the real home from a prior source. Scripts inherit this via env.
+  export OPENCLAW_DIR="$HOME/.openclaw"
   export PATH="$TEST_ROOT/bin:$PATH"
   mkdir -p "$HOME/.openclaw/logs" "$HOME/.openclaw" "$TEST_ROOT/bin"
   mkdir -p "$HOME/.config/systemd/user" "$TEST_ROOT/etc/systemd/system"
