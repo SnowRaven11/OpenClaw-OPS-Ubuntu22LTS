@@ -2,7 +2,7 @@
 
 OpenClaw gateway operations skill for agent environments. Covers health checks, repair workflows, continuous monitoring, session analysis, update-change detection, and security review for a local or self-hosted OpenClaw install.
 
-Tested against OpenClaw `2026.5.26`.
+Tested against OpenClaw `2026.6.5`.
 
 ## What it does
 
@@ -260,6 +260,10 @@ Notifications are sent via `openclaw message send --channel discord`. If the gat
 | v1.2.6 | v2026.5+ GAP: version-gate removed `tools.exec.*` config paths in heal.sh and check-update.sh; fix snapshot fields (`maxConcurrent`, `model.primary`); update cli-reference.md, +2 tests (39) |
 | v1.2.7 | Discord notifications: 9 existing `send_notification` call sites routed to Discord via `_discord_send`; per-user `~/.openclaw/discord-channels.json`; ANSI color blocks; `config/discord-channels.example.json` shipped in repo; +2 tests (41) |
 | v1.2.8 | Discord message style: only the alert label is colored; verbose details render in default channel color. `_discord_ansi` accepts optional `detail` argument; all 9 call sites updated |
+| v1.2.9 | security-scan.sh: `bind=lan` accepted warning (no score deduction); `~/.openclaw/.env` chmod 600 approved as active secret exception; config path expandvars fix |
+| v1.2.10 | OC 2026.5.28 compatibility: lib.sh defines `OPENCLAW_DIR` with `OPENCLAW_HOME` support; all core scripts updated; sandbox mode check [5] in check-update.sh; +1 test (42) |
+| v1.2.11 | security-scan.sh check [3]: `sandbox=off` accepted warning (no deduction) on Docker-in-Docker hosts |
+| v1.2.12 | OC 2026.6.1+ compatibility: heal.sh Step 4 cron re-enablement uses `openclaw cron list --all --json` instead of removed `jobs.json`; version-gated with `version_below v2026.6.1`; +1 test (43) |
 
 ## Running tests
 

@@ -264,29 +264,49 @@ fi
 # ── Step 4: Cron jobs ─────────────────────────────────────────────────────────
 echo ""
 echo -e "${BLD}[4] Cron jobs${RST}"
-CRON_FILE=~/.openclaw/cron/jobs.json
-if [[ -f "$CRON_FILE" ]]; then
-  DISABLED_JOBS=$(python3 -c "
-import json, sys
-data = json.load(open(sys.argv[1]))
-jobs = data if isinstance(data, list) else data.get('jobs', [])
-disabled = [j.get('id', j.get('name', 'unknown')) for j in jobs if not j.get('enabled', True) and j.get('consecutiveErrors', 0) > 0]
-print('\n'.join(disabled))
-" "$CRON_FILE" 2>/dev/null || echo "")
 
-  if [[ -n "$DISABLED_JOBS" ]]; then
+_reenable_disabled_crons() {
+  local disabled_jobs="$1"
+  if [[ -n "$disabled_jobs" ]]; then
     while IFS= read -r job_id; do
       [[ -z "$job_id" ]] && continue
       log_info "Auto-disabled cron: $job_id — re-enabling"
       openclaw cron enable "$job_id" 2>/dev/null && \
         log_fixed "Cron re-enabled: $job_id" || \
         log_broken "Failed to re-enable cron: $job_id"
-    done <<< "$DISABLED_JOBS"
+    done <<< "$disabled_jobs"
+  fi
+}
+
+if version_below "$CURRENT_VERSION" "v2026.6.1"; then
+  # Legacy: crons stored in jobs.json (pre-v2026.6.1)
+  CRON_FILE="$OPENCLAW_DIR/cron/jobs.json"
+  if [[ -f "$CRON_FILE" ]]; then
+    DISABLED_JOBS=$(python3 -c "
+import json, sys
+data = json.load(open(sys.argv[1]))
+jobs = data if isinstance(data, list) else data.get('jobs', [])
+disabled = [j.get('id', j.get('name', 'unknown')) for j in jobs if not j.get('enabled', True) and j.get('consecutiveErrors', 0) > 0]
+print('\n'.join(disabled))
+" "$CRON_FILE" 2>/dev/null || echo "")
+    _reenable_disabled_crons "$DISABLED_JOBS"
+    [[ -z "$DISABLED_JOBS" ]] && log_info "Cron jobs OK"
   else
-    log_info "Cron jobs OK"
+    log_info "No cron jobs file found — skipping"
   fi
 else
-  log_info "No cron jobs file found — skipping"
+  # v2026.6.1+: jobs.json removed — query SQLite via CLI
+  DISABLED_JOBS=$(openclaw cron list --all --json 2>/dev/null | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+jobs = d.get('jobs', d) if isinstance(d, dict) else d
+disabled = [j.get('id', 'unknown') for j in jobs
+            if not j.get('enabled', True)
+            and int((j.get('state') or {}).get('consecutiveErrors', 0)) > 0]
+print('\n'.join(disabled))
+" 2>/dev/null || echo "")
+  _reenable_disabled_crons "$DISABLED_JOBS"
+  [[ -z "$DISABLED_JOBS" ]] && log_info "Cron jobs OK (SQLite)"
 fi
 
 # ── Step 5: Stuck sessions ────────────────────────────────────────────────────

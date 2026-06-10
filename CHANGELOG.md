@@ -6,6 +6,17 @@ Notable changes to openclaw-ops. Format follows [Keep a Changelog](https://keepa
 
 ---
 
+## [v1.2.12] — 2026-06-10
+
+### Fixed
+- `scripts/heal.sh` Step 4 — cron re-enablement was silently skipped on v2026.6.1+ because `jobs.json` was removed in that release. Step 4 is now version-gated: pre-v2026.6.1 uses the existing `jobs.json` path; v2026.6.1+ queries `openclaw cron list --all --json` and reads `state.consecutiveErrors` to find auto-disabled crons. The result is the same behavior (re-enable any cron disabled by errors) on both old and new installs.
+- `scripts/heal.sh` — `CRON_FILE` path updated from tilde-expanded `~/.openclaw/cron/jobs.json` to `$OPENCLAW_DIR/cron/jobs.json` (honors `OPENCLAW_HOME`)
+
+### Added
+- `tests/run.sh` — `test_heal_cron_step_version_gated_for_v2026_6_1_plus`: static check that the `version_below v2026.6.1` guard appears before the `jobs.json` reference. Test count: 42 → 43
+
+---
+
 ## [v1.2.8] — 2026-05-27
 
 ### Changed

@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Run all tests (41 tests, should take ~30s)
+# Run all tests (43 tests, should take ~30s)
 bash tests/run.sh
 
 # Lint all scripts (must pass with 0 warnings)
