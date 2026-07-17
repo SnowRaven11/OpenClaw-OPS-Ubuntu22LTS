@@ -89,83 +89,6 @@ with open(state_file, 'w') as out:
 fi
 
 
-# OPENCLAW_BOOT_RECOVERY_START
-# Ensure Docker is fully initialized and recreate the Compose stack when
-# containers are absent after a host reboot.
-OPENCLAW_BOOT_STACK_DIR="${OPENCLAW_STACK_DIR:-/srv/openclaw/openclaw}"
-
-echo "[watchdog] Waiting for Docker readiness"
-
-docker_ready=false
-for attempt in $(seq 1 30); do
-  if docker info >/dev/null 2>&1; then
-    docker_ready=true
-    break
-  fi
-  sleep 2
-done
-
-if [[ "$docker_ready" != "true" ]]; then
-  echo "[watchdog] ERROR: Docker did not become ready within 60 seconds" >&2
-  exit 1
-fi
-
-if [[ ! -f "$OPENCLAW_BOOT_STACK_DIR/docker-compose.yml" ]]; then
-  echo "[watchdog] ERROR: Compose file missing in $OPENCLAW_BOOT_STACK_DIR" >&2
-  exit 1
-fi
-
-echo "[watchdog] Ensuring OpenClaw Compose services exist and are started"
-
-if ! docker compose \
-  --project-directory "$OPENCLAW_BOOT_STACK_DIR" \
-  up -d --remove-orphans; then
-  echo "[watchdog] ERROR: docker compose up failed" >&2
-  exit 1
-fi
-
-gateway_id="$(
-  docker compose \
-    --project-directory "$OPENCLAW_BOOT_STACK_DIR" \
-    ps -q openclaw-gateway 2>/dev/null || true
-)"
-
-if [[ -z "$gateway_id" ]]; then
-  echo "[watchdog] ERROR: gateway container was not created" >&2
-  exit 1
-fi
-
-echo "[watchdog] Waiting for gateway readiness"
-
-gateway_ready=false
-for attempt in $(seq 1 45); do
-  gateway_state="$(
-    docker inspect \
-      --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' \
-      "$gateway_id" 2>/dev/null || true
-  )"
-
-  case "$gateway_state" in
-    "running healthy"|"running no-healthcheck")
-      gateway_ready=true
-      break
-      ;;
-  esac
-
-  sleep 2
-done
-
-if [[ "$gateway_ready" != "true" ]]; then
-  echo "[watchdog] ERROR: gateway did not become ready" >&2
-  docker compose \
-    --project-directory "$OPENCLAW_BOOT_STACK_DIR" \
-    ps >&2 || true
-  exit 1
-fi
-
-echo "[watchdog] Docker and OpenClaw stack are ready"
-# OPENCLAW_BOOT_RECOVERY_END
-
 # ── Track restart attempts in state file ─────────────────────────────────────
 get_restart_count() {
   python3 -c "
@@ -257,8 +180,22 @@ os.replace(tmp, state_file)
 # Restart the gateway via Docker Compose. The compose service owns the gateway
 # lifecycle (restart: unless-stopped); we force a restart here when the watchdog
 # determines recovery is required.
+#
+# `docker compose restart` (_docker_compose_restart) can only restart a
+# container that already exists — it fails outright if the stack was never
+# brought up (e.g. right after a host reboot where Docker Compose didn't
+# auto-start it). `docker compose up -d` (_docker_compose_up) is idempotent:
+# it creates+starts a missing container and no-ops on one that's already
+# running with unchanged config. Route to `_docker_compose_up` whenever the
+# gateway container isn't running so boot-time recovery works without a
+# second, unstubbed code path.
 gateway_restart() {
-  _docker_compose_restart 2>>"$LOG_FILE"
+  if gateway_running; then
+    _docker_compose_restart 2>>"$LOG_FILE"
+  else
+    log "Gateway container not running — using compose up instead of restart"
+    _docker_compose_up 2>>"$LOG_FILE"
+  fi
 }
 
 # Returns seconds since the gateway container started, or 999999 on error.

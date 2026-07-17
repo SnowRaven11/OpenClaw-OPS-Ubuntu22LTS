@@ -195,9 +195,8 @@ bash scripts/remediation-board.sh list
 
 ## Watchdog escalation model
 
-0. **Tier 0 (boot recovery)** — every run first waits for Docker to be ready (`docker info`, up to 60s), then runs `docker compose --project-directory $OPENCLAW_STACK_DIR up -d --remove-orphans` and polls for gateway health before proceeding. This recreates the entire Compose stack if it doesn't exist yet (e.g. right after a host reboot) — the old `docker compose restart` used lower down could only restart containers that already existed, so a cold-booted host stayed offline until someone ran `docker compose up -d` by hand. Same script, same timer — not a second restart owner.
 1. **Tier 1** — HTTP ping every 5 min (systemd user timer; cron fallback on non-systemd)
-2. **Tier 2** — Gateway restart via `docker compose --project-directory` + `heal.sh` if simple restart fails
+2. **Tier 2** — Gateway restart via `docker compose --project-directory`; restarts a running-but-unhealthy container, or (v1.2.13+) recreates it with `compose up -d` if it isn't running at all — e.g. right after a host reboot where the stack was never brought up, which the plain `restart` case can't do. Escalates to `heal.sh` if the simple restart/recreate doesn't bring the gateway back.
 3. **Tier 3** — journald warning + desktop popup (via `notify-send`) + Discord `#error-alerts` after 3 failures in 15 min
 
 ## Platform
@@ -265,7 +264,7 @@ Notifications are sent via `openclaw message send --channel discord`. If the gat
 | v1.2.10 | 2026.5.28 compatibility: `OPENCLAW_HOME` env var honored in all core scripts via `$OPENCLAW_DIR` in `lib.sh`; sandbox mode check [5] in `check-update.sh` (default changed `off`→`non-main` in 2026.5.28); +1 test (42) |
 | v1.2.11 | `security-scan.sh`: `sandbox=off` treated as accepted warning (no score deduction) on Docker-in-Docker hosts; mirrors `bind=lan` pattern |
 | v1.2.12 | OC 2026.6.1+ compatibility: heal.sh Step 4 cron re-enablement uses `openclaw cron list --all --json` instead of removed `jobs.json`; version-gated with `version_below v2026.6.1`; +1 test (43) |
-| v1.2.13 | `watchdog.sh` boot recovery: waits for Docker readiness, runs `docker compose up -d --remove-orphans` to recreate a missing stack after reboot (old `compose restart` couldn't create absent containers), polls gateway health before normal checks |
+| v1.2.13 | `watchdog.sh` boot recovery: `gateway_restart()` calls `_docker_compose_up` instead of `_docker_compose_restart` when the gateway container isn't running (e.g. after a reboot the stack was never brought up for) — reuses existing `lib.sh` helpers, no new docker calls; +1 test (44) |
 
 ## Running tests
 

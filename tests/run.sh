@@ -410,6 +410,28 @@ test_watchdog_restarts_unhealthy_docker_gateway() {
   assert_contains "$call_log" "docker_compose_restart"
 }
 
+test_watchdog_uses_compose_up_when_gateway_container_missing() {
+  setup_fake_env
+  trap teardown_fake_env RETURN
+
+  # Simulates the boot-time case: container doesn't exist yet (e.g. right
+  # after a host reboot where the Compose stack was never brought up).
+  # `docker compose restart` cannot create a missing container; watchdog
+  # must fall back to `docker compose up -d` instead.
+  export CURL_HTTP_STATUS=000
+  export DOCKER_GATEWAY_STATUS=missing
+  export DOCKER_GATEWAY_HEALTH=none
+  export OPENCLAW_CALL_LOG="$HOME/.openclaw/logs/calls.log"
+  mkdir -p "$(dirname "$OPENCLAW_CALL_LOG")"
+
+  bash "$ROOT_DIR/scripts/watchdog.sh" >/dev/null 2>&1 || true
+
+  local call_log
+  call_log="$(cat "$OPENCLAW_CALL_LOG" 2>/dev/null || true)"
+  assert_contains "$call_log" "docker_compose_up"
+  assert_not_contains "$call_log" "docker_compose_restart"
+}
+
 test_version_change_survives_watchdog_for_check_update() {
   setup_fake_env
   trap teardown_fake_env RETURN
@@ -1905,6 +1927,7 @@ run_test test_workspace_auto_commit_commits_dirty_repo_and_audit_reports_coverag
 run_test test_workspace_git_audit_cron_matching_is_per_job_and_strict_controls_exit
 run_test test_daily_digest_summarizes_incidents_activity_and_watchdog
 run_test test_watchdog_restarts_unhealthy_docker_gateway
+run_test test_watchdog_uses_compose_up_when_gateway_container_missing
 run_test test_discord_send_skips_when_key_missing_from_config
 run_test test_discord_send_skips_when_gateway_not_running
 printf 'All openclaw-ops tests passed\n'
