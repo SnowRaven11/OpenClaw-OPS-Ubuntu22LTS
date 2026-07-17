@@ -52,6 +52,8 @@ All gateway lifecycle calls go through lib.sh helpers — never bare `docker` or
 
 Only `watchdog.sh` may restart the gateway. All other scripts — and any you add — must **alert and log only**. Two restart owners cause race conditions, broken rate-limit counters, and restart storms. See `docs/architecture.md` for the full rationale and how to extend detection without adding a second owner.
 
+**Boot recovery (v1.2.13+):** `watchdog.sh` now runs a boot-recovery pass before its normal checks — it waits for `docker info` to succeed (up to 60s), then runs `docker compose --project-directory $OPENCLAW_STACK_DIR up -d --remove-orphans` and polls gateway health. `docker compose restart` (used elsewhere in the script) cannot recreate containers that don't exist after a host reboot, so without this the stack stayed down until someone ran `docker compose up -d` manually. This still runs inside `watchdog.sh` under the same timer — do not add a second boot-time startup mechanism (e.g. a systemd unit that also calls `compose up`) to cover the same case.
+
 ## lib.sh sourcing pattern
 
 Every script starts with:

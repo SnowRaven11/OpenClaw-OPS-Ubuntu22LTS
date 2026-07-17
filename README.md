@@ -195,6 +195,7 @@ bash scripts/remediation-board.sh list
 
 ## Watchdog escalation model
 
+0. **Tier 0 (boot recovery)** — every run first waits for Docker to be ready (`docker info`, up to 60s), then runs `docker compose --project-directory $OPENCLAW_STACK_DIR up -d --remove-orphans` and polls for gateway health before proceeding. This recreates the entire Compose stack if it doesn't exist yet (e.g. right after a host reboot) — the old `docker compose restart` used lower down could only restart containers that already existed, so a cold-booted host stayed offline until someone ran `docker compose up -d` by hand. Same script, same timer — not a second restart owner.
 1. **Tier 1** — HTTP ping every 5 min (systemd user timer; cron fallback on non-systemd)
 2. **Tier 2** — Gateway restart via `docker compose --project-directory` + `heal.sh` if simple restart fails
 3. **Tier 3** — journald warning + desktop popup (via `notify-send`) + Discord `#error-alerts` after 3 failures in 15 min
@@ -260,16 +261,11 @@ Notifications are sent via `openclaw message send --channel discord`. If the gat
 | v1.2.6 | v2026.5+ GAP: version-gate removed `tools.exec.*` config paths in heal.sh and check-update.sh; fix snapshot fields (`maxConcurrent`, `model.primary`); update cli-reference.md, +2 tests (39) |
 | v1.2.7 | Discord notifications: 9 existing `send_notification` call sites routed to Discord via `_discord_send`; per-user `~/.openclaw/discord-channels.json`; ANSI color blocks; `config/discord-channels.example.json` shipped in repo; +2 tests (41) |
 | v1.2.8 | Discord message style: only the alert label is colored; verbose details render in default channel color. `_discord_ansi` accepts optional `detail` argument; all 9 call sites updated |
-<<<<<<< HEAD
-| v1.2.11 | `security-scan.sh`: `sandbox=off` treated as accepted warning (no score deduction) on Docker-in-Docker hosts; mirrors `bind=lan` pattern |
-| v1.2.10 | 2026.5.28 compatibility: `OPENCLAW_HOME` env var honored in all core scripts via `$OPENCLAW_DIR` in `lib.sh`; sandbox mode check [5] in `check-update.sh` (default changed `off`→`non-main` in 2026.5.28) |
 | v1.2.9 | `security-scan.sh`: `gateway.bind=lan` treated as accepted warning (no score deduction); `~/.openclaw/.env` with chmod 600 approved as active runtime secret exception; config path now expands `$OPENCLAW_HOME` as well as `~` |
-=======
-| v1.2.9 | security-scan.sh: `bind=lan` accepted warning (no score deduction); `~/.openclaw/.env` chmod 600 approved as active secret exception; config path expandvars fix |
-| v1.2.10 | OC 2026.5.28 compatibility: lib.sh defines `OPENCLAW_DIR` with `OPENCLAW_HOME` support; all core scripts updated; sandbox mode check [5] in check-update.sh; +1 test (42) |
-| v1.2.11 | security-scan.sh check [3]: `sandbox=off` accepted warning (no deduction) on Docker-in-Docker hosts |
+| v1.2.10 | 2026.5.28 compatibility: `OPENCLAW_HOME` env var honored in all core scripts via `$OPENCLAW_DIR` in `lib.sh`; sandbox mode check [5] in `check-update.sh` (default changed `off`→`non-main` in 2026.5.28); +1 test (42) |
+| v1.2.11 | `security-scan.sh`: `sandbox=off` treated as accepted warning (no score deduction) on Docker-in-Docker hosts; mirrors `bind=lan` pattern |
 | v1.2.12 | OC 2026.6.1+ compatibility: heal.sh Step 4 cron re-enablement uses `openclaw cron list --all --json` instead of removed `jobs.json`; version-gated with `version_below v2026.6.1`; +1 test (43) |
->>>>>>> 72595f9 (fix: heal.sh Step 4 cron re-enablement for OC v2026.6.1+ (jobs.json removed))
+| v1.2.13 | `watchdog.sh` boot recovery: waits for Docker readiness, runs `docker compose up -d --remove-orphans` to recreate a missing stack after reboot (old `compose restart` couldn't create absent containers), polls gateway health before normal checks |
 
 ## Running tests
 

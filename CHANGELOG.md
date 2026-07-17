@@ -6,6 +6,13 @@ Notable changes to openclaw-ops. Format follows [Keep a Changelog](https://keepa
 
 ---
 
+## [v1.2.13] — 2026-07-17
+
+### Fixed
+- `scripts/watchdog.sh` — boot recovery. Previously the watchdog only called `_docker_compose_restart` (`docker compose restart`), which cannot recreate containers that don't exist yet after a host reboot — if the stack hadn't been brought up, restart failed and OpenClaw stayed offline until a manual `docker compose up -d`. Watchdog now: (1) waits up to 60s for `docker info` to succeed, (2) runs `docker compose --project-directory $OPENCLAW_STACK_DIR up -d --remove-orphans` to recreate any missing stack, (3) polls `docker inspect` for the gateway container until `running healthy` (or `running no-healthcheck`) before falling through to the normal watchdog checks. Does not add a second restart owner — this runs inside the existing watchdog/timer, still the sole authoritative recovery mechanism.
+
+---
+
 ## [v1.2.12] — 2026-06-10
 
 ### Fixed
